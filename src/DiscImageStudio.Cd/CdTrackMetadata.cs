@@ -27,7 +27,9 @@ public sealed record CdTrackMetadata(
     double PitchQuadratic = 0,
     double PitchCubic = 0,
     long? UsableSectors = null,
-    double? SourceImageOuterRadiusMm = null)
+    double? SourceImageOuterRadiusMm = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PaletteDark = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PaletteLight = null)
 {
     internal const string FormatName = "cd-da-track-v1";
 
@@ -39,6 +41,14 @@ public sealed record CdTrackMetadata(
         InnerRadiusMm, OuterRadiusMm, Sectors, LinearVelocityMmPerSecond,
         StartAngleDegrees * Math.PI / 180.0, ImageOuterRadiusMm,
         PitchLinear, PitchQuadratic, PitchCubic, UsableSectors, SourceImageOuterRadiusMm);
+
+    /// <summary>Disc bytes the track was drawn with; absent fields mean the standard palette.
+    /// An unreadable value also falls back to the standard palette, which only affects preview.</summary>
+    public CdPalette CreatePalette()
+        => CdBytePattern.TryParse(PaletteDark ?? "0D", out CdBytePattern dark)
+            && CdBytePattern.TryParse(PaletteLight ?? "AA", out CdBytePattern light)
+                ? new CdPalette(dark, light)
+                : CdPalette.Standard;
 
     /// <summary>Reads the sidecar of a track, or null when it is absent or unreadable.</summary>
     public static CdTrackMetadata? TryLoad(string trackPath)

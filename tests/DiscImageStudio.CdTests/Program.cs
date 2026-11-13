@@ -22,6 +22,12 @@ if (args is ["--assess", string darkText, string lightText])
     return;
 }
 
+if (args is ["--palette"])
+{
+    PaletteTests.Run();
+    return;
+}
+
 if (args is ["--channel"])
 {
     ChannelModelTests.Run();
@@ -30,5 +36,6 @@ if (args is ["--channel"])
 
 GoldenOutputTests.Run();
 ChannelModelTests.Run();
+PaletteTests.Run();
 
 Console.WriteLine("cd-tests: all checks passed");

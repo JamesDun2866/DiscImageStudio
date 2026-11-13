@@ -43,6 +43,15 @@ public sealed class CdDiscModule : IOpticalDiscModule
         new("tone-gamma", "sRGB linearization", DiscOptionValueType.Boolean, DefaultValue: "false"),
     ];
 
+    /// <summary>Custom two-level disc bytes (audio only). Unvetted pairs are refused unless the
+    /// user explicitly accepts the readability risk.</summary>
+    private static readonly IReadOnlyList<DiscOptionDefinition> PaletteOptions =
+    [
+        new("palette-dark", "Dark disc bytes, e.g. 0D or F2-A8", DiscOptionValueType.String, DefaultValue: "0D"),
+        new("palette-light", "Light disc bytes, e.g. AA or F2-A8", DiscOptionValueType.String, DefaultValue: "AA"),
+        new("allow-unvetted", "Allow bytes outside the shipped palette's DC envelope", DiscOptionValueType.Boolean, DefaultValue: "false"),
+    ];
+
     private static readonly DiscModuleDescriptor ModuleDescriptor = new(
         ModuleId,
         "CD",
@@ -66,6 +75,7 @@ public sealed class CdDiscModule : IOpticalDiscModule
                     new("interleave", "CD-DA delay interleave", DiscOptionValueType.Boolean, DefaultValue: "true"),
                     new("cue", "Write a CUE sheet next to the WAV track", DiscOptionValueType.Boolean, DefaultValue: "true"),
                     .. ToneOptions,
+                    .. PaletteOptions,
                 ]),
             new DiscCommandDescriptor(
                 "cd-preview-warp",
@@ -150,7 +160,8 @@ public sealed class CdDiscModule : IOpticalDiscModule
             options.GetBoolean("cue", true),
             options.GetString("data-dir", string.Empty),
             options.GetString("volume-label", "CD_IMAGE"),
-            ReadFilePosition(options));
+            ReadFilePosition(options),
+            ReadPalette(options));
         DiscImageResult result = CdImageGenerator.Generate(image, progress, cancellationToken);
         return new DiscJobResult(ModuleId, request.Command, 0, result.Summary, result.OutputPath);
     }
@@ -211,14 +222,16 @@ public sealed class CdDiscModule : IOpticalDiscModule
             return new DiscJobResult(ModuleId, request.Command, 0,
                 $"CD data readback preview complete: output={output}", output);
         }
+        CdTrackMetadata? trackMetadata = CdTrackMetadata.TryLoad(track);
         CdTrackGenerator.PreviewTrack(
             options.Require("track"),
             output,
-            ReadParameters(options, CdTrackMetadata.TryLoad(track)?.CreateParameters()),
+            ReadParameters(options, trackMetadata?.CreateParameters()),
             options.GetInt("size", 1600),
             options.GetInt("byte-step", 48),
             options.GetBoolean("deinterleave", true),
-            cancellationToken);
+            cancellationToken,
+            trackMetadata?.CreatePalette());
         return new DiscJobResult(
             ModuleId,
             request.Command,
@@ -279,6 +292,36 @@ public sealed class CdDiscModule : IOpticalDiscModule
             "outer" => true,
             _ => throw new ArgumentException("--file-position must be inner or outer."),
         };
+
+    private static CdPalette? ReadPalette(CdCommandOptions options)
+    {
+        if (!options.Contains("palette-dark") && !options.Contains("palette-light"))
+        {
+            return null;
+        }
+
+        CdPalette palette = CdPalette.FromText(options.GetString("palette-dark", string.Empty),
+            options.GetString("palette-light", string.Empty));
+        if (palette.IsStandard)
+        {
+            return null;
+        }
+
+        palette.Validate(options.GetInt("tone-levels", ToneProfile.TwoLevels));
+        if (!options.GetBoolean("allow-unvetted", false))
+        {
+            Physical.CdPairAssessment assessment = Physical.CdPatternSafety.AssessPair(palette.Dark, palette.Light);
+            if (!assessment.Safe)
+            {
+                throw new ArgumentException(
+                    $"Disc bytes {palette} produce a texture outside the shipped palette's DC envelope "
+                    + $"({assessment.FailingScenario}; limit {assessment.Envelope}). Such discs may be harder to "
+                    + "read or burn; pass --allow-unvetted true to generate anyway.");
+            }
+        }
+
+        return palette;
+    }
 
     private static ToneProfile ReadTone(CdCommandOptions options)
     {

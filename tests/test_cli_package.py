@@ -29,6 +29,16 @@ def check_package(executable: Path) -> None:
         if 'FILE "track.wav" WAVE' not in (work / "track.cue").read_text(encoding="utf-8-sig"):
             raise ValueError("CUE does not reference the generated WAV")
 
+        run("cd-generate", "--input", "input image.png", "--output", "custom.wav", "--sectors", "40",
+            "--palette-light", "F2-A8")
+        sidecar = json.loads((work / "custom.wav.json").read_text(encoding="utf-8"))
+        if sidecar.get("paletteLight") != "F2-A8":
+            raise ValueError("cd-generate did not record the custom light bytes")
+        refused = subprocess.run([executable, "cd-generate", "--input", "input image.png", "--output", "unvetted.wav",
+                                  "--sectors", "40", "--palette-light", "F7-A8"], cwd=work)
+        if refused.returncode == 0:
+            raise ValueError("cd-generate accepted disc bytes outside the safety envelope")
+
         run("cd-channel-report", "--patterns", "0D,AA,F2-A8", "--candidates", "1", "--output", "channel.json")
         report = json.loads((work / "channel.json").read_text(encoding="utf-8"))
         if report.get("format") != "cd-channel-report-v1" or len(report.get("patterns", [])) != 3:
