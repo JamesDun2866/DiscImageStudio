@@ -922,13 +922,14 @@ public sealed class WindowsImapiBurner : IOpticalDiscBurner
             Diagnose(() => mediaDiagnostic);
 
             SetOperation($"构造 CD DAO {trackDescription}");
-            IStream rawImage = imageSession.CreateImage(content, sectorType);
+            IStream rawImage = imageSession.CreateImage(content, sectorType, request.CdTrackLayout);
             long startOfLeadout = imageSession.StartOfLeadout;
             long lastPossibleStartOfLeadout = format.LastPossibleStartOfLeadout;
             long excessSectors = startOfLeadout - lastPossibleStartOfLeadout;
             layoutDiagnostic = $"CD DAO 容量：TrackSectors={request.ContentLength / OpticalBurnMedia.GetSectorBytes(request.MediaKind)}；"
                 + $"StartOfLeadout={startOfLeadout}；LastPossibleStartOfLeadout={lastPossibleStartOfLeadout}；"
-                + $"LeadoutMarginSectors={-excessSectors}。";
+                + $"LeadoutMarginSectors={-excessSectors}"
+                + (request.CdTrackLayout is null ? string.Empty : $"；Tracks={request.CdTrackLayout}") + "。";
             Diagnose(() => layoutDiagnostic);
             // The current recorder's prepared-media boundary is authoritative,
             // including if the medium changed after the read-only capacity query.

@@ -51,6 +51,13 @@ internal interface ICdRawImageSession : IDisposable
     // sectorType must equal the type requested from the RawCD format. IMAPI cannot
     // detect a mismatch because both supported layouts use 2448-byte sectors.
     IStream CreateImage(IStream content, int sectorType);
+
+    // A multi-track layout splits the content into tracks (and an optional hidden first-track
+    // pregap). Only the IMAPI audio image creator supports it; null keeps the single track.
+    IStream CreateImage(IStream content, int sectorType, CdDaoTrackLayout? layout)
+        => layout is null
+            ? CreateImage(content, sectorType)
+            : throw new NotSupportedException("This CD image session writes a single track only.");
 }
 
 internal sealed class DynamicCdRawSession(object format, Action<object>? reportWriteProgress = null) : ICdRawSession
@@ -165,6 +172,121 @@ internal sealed class DynamicCdRawImageSession : ICdRawImageSession
         return (IStream)_resultImage;
     }
 
+    /// <summary>
+    /// Builds a multi-track audio image from one sequential content stream: an optional special
+    /// pregap (track 1's index 00, the hidden area players skip) and then the tracks, gapless.
+    /// Every track's position is compared with <paramref name="layout"/> before the image is
+    /// returned, because a picture drawn into the tracks only lines up at its planned LBAs.
+    /// </summary>
+    public IStream CreateImage(IStream content, int sectorType, CdDaoTrackLayout? layout)
+    {
+        if (layout is null)
+        {
+            return CreateImage(content, sectorType);
+        }
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(content);
+        if (!CdRawSectorType.IsSupported(sectorType))
+        {
+            throw new ArgumentOutOfRangeException(nameof(sectorType), sectorType,
+                "CD DAO images require cooked R-W or raw P-W 2448-byte sectors.");
+        }
+
+        if (_resultImage is not null)
+        {
+            throw new InvalidOperationException("The CD DAO image has already been created.");
+        }
+
+        layout.Validate();
+        content.Stat(out STATSTG stat, 1);
+        if (stat.cbSize != layout.ContentBytes)
+        {
+            throw new ArgumentException(
+                $"The CD content has {stat.cbSize} bytes; the track layout needs {layout.ContentBytes}.",
+                nameof(content));
+        }
+
+        _creator.ResultingImageType = sectorType;
+        // Gapless is IMAPI's default; set it explicitly because a 2-second gap per track would
+        // move every later track, and the picture with it, by 150 sectors.
+        _creator.DisableGaplessAudio = false;
+        CdTrackSliceStream.SharedSource source = new(content);
+        long offset = 0;
+        if (layout.SpecialPregapSectors > 0)
+        {
+            long pregapBytes = layout.SpecialPregapSectors * SectorBytes;
+            _creator.AddSpecialPregap(new CdTrackSliceStream(source, offset, pregapBytes));
+            offset += pregapBytes;
+        }
+
+        List<object> trackIndexes = new(layout.TrackSectors.Count);
+        foreach (long sectors in layout.TrackSectors)
+        {
+            long bytes = sectors * SectorBytes;
+            trackIndexes.Add((object)_creator.AddTrack(AudioSectorType, new CdTrackSliceStream(source, offset, bytes)));
+            offset += bytes;
+        }
+
+        _resultImage = _creator.CreateResultImage();
+        VerifyLayout(layout, trackIndexes);
+        return (IStream)_resultImage;
+    }
+
+    private const int SectorBytes = 2352;
+
+    private void VerifyLayout(CdDaoTrackLayout layout, IReadOnlyList<object> trackIndexes)
+    {
+        long leadout = StartOfLeadout;
+        List<string> problems = [];
+        if (leadout != layout.StartOfLeadout)
+        {
+            problems.Add($"lead-out at LBA {leadout}, planned {layout.StartOfLeadout}");
+        }
+
+        for (int index = 0; index < trackIndexes.Count; index++)
+        {
+            CdDaoTrackReport report = ReadTrack(trackIndexes[index]);
+            long plannedLba = layout.TrackStartLba(index);
+            if (report.StartingLba != plannedLba || report.SectorCount != layout.TrackSectors[index])
+            {
+                problems.Add($"track {index + 1} at LBA {report.StartingLba} with {report.SectorCount} sectors, "
+                    + $"planned LBA {plannedLba} with {layout.TrackSectors[index]}");
+            }
+        }
+
+        if (problems.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "IMAPI placed the CD tracks differently from the plan (" + string.Join("; ", problems)
+                + "). Nothing was written; the picture would not line up.");
+        }
+    }
+
+    /// <summary>Track facts IMAPI reports after the image is created (IRawCDImageTrackInfo),
+    /// read through IDispatch because TrackInfo is a parameterized property.</summary>
+    internal CdDaoTrackReport ReadTrack(object trackIndex)
+    {
+        object creator = _creator;
+        object info = creator.GetType().InvokeMember("TrackInfo",
+            System.Reflection.BindingFlags.GetProperty, null, creator, [trackIndex])!;
+        try
+        {
+            dynamic track = info;
+            return new CdDaoTrackReport(
+                Convert.ToInt32(track.TrackNumber),
+                Convert.ToInt64(track.StartingLba),
+                Convert.ToInt64(track.SectorCount));
+        }
+        finally
+        {
+            if (Marshal.IsComObject(info))
+            {
+                Marshal.ReleaseComObject(info);
+            }
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -184,3 +306,6 @@ internal sealed class DynamicCdRawImageSession : ICdRawImageSession
         }
     }
 }
+
+/// <summary>A track as IMAPI's image creator reports it after CreateResultImage.</summary>
+internal readonly record struct CdDaoTrackReport(int TrackNumber, long StartingLba, long SectorCount);

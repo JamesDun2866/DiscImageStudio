@@ -82,6 +82,8 @@ public sealed record OpticalBurnProgress(
 /// as required by IMAPI_CD_SECTOR_AUDIO. ContentLength excludes any WAV header.
 /// CD data, DVD and Blu-ray producers supply complete 2048-byte logical data sectors.
 /// The recording backend adds physical encoding and error correction.
+/// <see cref="CdTrackLayout"/> splits CD audio content into several tracks (and an optional
+/// hidden first-track pregap); null burns the content as one track.
 /// </summary>
 public sealed record OpticalBurnRequest(
     string DeviceId,
@@ -89,7 +91,8 @@ public sealed record OpticalBurnRequest(
     long ContentLength,
     Action<Stream, CancellationToken> ProduceContent,
     OpticalWriteSpeed? WriteSpeed = null,
-    OpticalBurnBufferOptions? BufferOptions = null)
+    OpticalBurnBufferOptions? BufferOptions = null,
+    CdDaoTrackLayout? CdTrackLayout = null)
 {
     public OpticalBurnBufferOptions EffectiveBufferOptions => BufferOptions
         ?? (MediaKind == OpticalBurnMediaKind.BluRayData
@@ -105,6 +108,22 @@ public sealed record OpticalBurnRequest(
             throw new ArgumentOutOfRangeException(
                 nameof(ContentLength),
                 $"Stream length must be a positive multiple of {sectorBytes} bytes.");
+        }
+
+        if (CdTrackLayout is not null)
+        {
+            if (MediaKind != OpticalBurnMediaKind.CdAudio)
+            {
+                throw new ArgumentException("Only CD audio burns can have several tracks.", nameof(CdTrackLayout));
+            }
+
+            CdTrackLayout.Validate();
+            if (CdTrackLayout.ContentBytes != ContentLength)
+            {
+                throw new ArgumentException(
+                    $"The CD track layout covers {CdTrackLayout.ContentBytes} bytes; the content has {ContentLength}.",
+                    nameof(CdTrackLayout));
+            }
         }
 
         WriteSpeed?.Validate();
