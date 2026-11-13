@@ -145,7 +145,7 @@ ECMA-130 §11.3 的螺距范围是 1.5–1.7 μm；§11.4 的基准扫描速度�
 - 当前 Mode 1 的 EDC 固定向量、全部 P/Q syndrome、位序及扰码隔离检查通过；CD-R/RW 的介质/profile 配对正确。两类介质共用 EFM/CIRC，并按 [ECMA-394](https://ecma-international.org/wp-content/uploads/ECMA-394_1st_edition_december_2010.pdf#page=67) / [ECMA-395](https://ecma-international.org/wp-content/uploads/ECMA-395_1st_edition_december_2010.pdf#page=74) §5.5.3 的可刻录盘规则生成导入区 Header，不能直接套用压制 CD-ROM 的 A0 偏移。
 - 默认 80min 预设仍隐含 1.432856 μm 螺距，不在其引用的 ECMA-130 §11.3 的 1.5–1.7 μm 范围。应明确名义初值与实测补偿参数的区别，不能将其描述为所有 CD-R/RW 都适用的标准精确几何。
 - `CddaInterleaver` 的有限流行为仍在：以 10 个非零扇区复现，相同输出长度内有 1332 个零占位，末端 1332 个逻辑字节未输出。`Flush` 仅补齐扇区，未排空延迟线。这是图案边缘及物理时序建模问题，不能据此认定整张 CD 不可读。
-- `BurnCdDao` 隐式允许超过设备报告的 [LastPossibleStartOfLeadout](https://learn.microsoft.com/en-us/windows/win32/api/imapi2/nf-imapi2-idiscformat2rawcd-get_lastpossiblestartofleadout) 最多 3 扇区。建议默认严格容量，超刻由明确选项控制；现有设备上的可用结果不能推广到所有刻录机/盘片。
+- `BurnCdDao` 隐式允许超过设备报告的 [LastPossibleStartOfLeadout](https://learn.microsoft.com/en-us/windows/win32/api/imapi2/nf-imapi2-idiscformat2rawcd-get_lastpossiblestartofleadout) 最多 3 扇区。建议默认严格容量，超刻由明确选项控制；现有设备上的可用结果不能推广到所有刻录机/盘片。（已在 1.5.0 处理：`BurnCdDao` 现对音轨与数据盘严格检查 lead-out 上限，任何超出都在写入前拒绝，不再保留 3 扇区容差；见 [CHANGELOG](../CHANGELOG.md) 1.5.0。）
 - 已写入的 CD-RW 会被拒绝，当前不提供擦除流程；这是既有支持范围。
 
 ### 蓝光：已有准入范围较完整

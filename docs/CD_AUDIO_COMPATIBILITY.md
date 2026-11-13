@@ -11,7 +11,7 @@ DiscImageStudio.exe cd-generate --input picture.png --output cd-image.iso `
 
 ISO 长度为 `扇区数 × 2048`，按 CD-ROM Mode 1 数据盘刻录。程序内即时刻录使用相同的 ISO 数据流；外部刻录软件应选择刻录镜像功能。音频交织开关和 CUE 只用于音轨模式。数据盘的绘图区单独补偿 CD-ROM 扰码及位置映射，随盘文件保留原始内容。
 
-CD 数据盘即时刻录与音轨共用 DAO 会话和 lead-out 边界检查，保留 ATIP 标定的扇区数及完整文件布局。程序将 ISO 负载编码为 Mode 1 原始扇区，并设置数据轨标识；使用铼德医疗水蓝盘预设时仍写出 359,845 个数据扇区，不按 TAO 接口较小的可用容量缩短图案或文件。DAO 沿用音轨模式最多 3 扇区的受限 overburn 检查，超限会在写入前报错。
+CD 数据盘即时刻录与音轨共用 DAO 会话和 lead-out 边界检查，保留 ATIP 标定的扇区数及完整文件布局。程序将 ISO 负载编码为 Mode 1 原始扇区，并设置数据轨标识；使用铼德医疗水蓝盘预设时仍写出 359,845 个数据扇区，不按 TAO 接口较小的可用容量缩短图案或文件。DAO 与音轨模式一样严格遵守光驱在准备介质后报告的 lead-out 上限（`LastPossibleStartOfLeadout`）：lead-out 起点超出哪怕 1 个扇区也会在写入前报错，不允许超刻。
 
 数据 DAO 转换还会把 IMAPI 音轨模板中的 ADR3/ISRC 子码重建为 ADR1 位置包，填写轨号、索引、相对/绝对 MSF 和 CRC；覆盖预间隙、数据区与 lead-out。已有 TOC、ADR1/ADR2、P/R-W 处理及数据主通道保持原行为。预间隙沿用实测 IMAPI 的 150→1 倒计时，使新包与相邻原生时间包连续。该转换仅用于数据盘；音轨继续使用原生模板及其 ADR3 元数据，普通 ISO 文件不携带这些子码。详细标准边界见 [CD 子码修复记录](PHYSICAL_MODEL_AUDIT.md#2026-11-06-cd-数据轨-adr3-修复)。
 
