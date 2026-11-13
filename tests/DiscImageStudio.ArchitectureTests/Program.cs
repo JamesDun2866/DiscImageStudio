@@ -280,6 +280,7 @@ RelocalizationTests.Run();
 CalibrationReturnButtonTests.Run();
 BurnWriteSpeedSelectionTests.Run();
 ContrastToolsTests.Run();
+MusicDiscAppTests.Run();
 
 Console.WriteLine("architecture-selftest: all checks passed");
 return;

@@ -7,6 +7,7 @@ using DiscImageStudio.BluRay;
 using DiscImageStudio.Burning;
 using DiscImageStudio.Cd;
 using DiscImageStudio.Cd.Contrast;
+using DiscImageStudio.Cd.Music;
 using DiscImageStudio.Core;
 using DiscImageStudio.Core.Calibration;
 using DiscImageStudio.Dvd;
@@ -127,6 +128,7 @@ public partial class BurnViewModel : ObservableObject
                 OnFamilyInputsChanged();
             }
             if (args.PropertyName is nameof(DiscParametersState.CdLightBytes) or nameof(DiscParametersState.CdDarkBytes)
+                    or nameof(DiscParametersState.CdMusicSignature)
                 && !UseCalibrationPattern)
             {
                 UpdateSourceSummary();
@@ -349,6 +351,7 @@ public partial class BurnViewModel : ObservableObject
             string encoding = string.IsNullOrWhiteSpace(_state.CdDataDirectory)
                 ? (_state.CdInterleave ? L.T("CD 音轨 · 启用延迟交织") : L.T("CD 音轨 · 未交织"))
                     + (_state.IsCdCustomPalette ? L.F($" · 浅色字节 {_state.CdPalette.Light}") : string.Empty)
+                    + (_state.HasCdMusic ? MusicSourceText() : string.Empty)
                 : L.F($"CD 数据盘 · 文件位于{(_state.CdFilesAtOuterRing ? L.T("外圈") : L.T("内圈"))}");
             SourceDetails = _design.HasLayers
                 ? L.F($"确保磁盘预留适量空间 · {encoding}")
@@ -358,7 +361,7 @@ public partial class BurnViewModel : ObservableObject
                 _state.CdPitchLinear, _state.CdPitchQuadratic, _state.CdPitchCubic,
                 _state.CdDataDirectory, _state.CdVolumeLabel, _state.CdFilesAtOuterRing, _state.CdOuterRingBleed,
                 _state.ToneDitherStrength, _state.ToneLevels, _state.ToneBrightness,
-                _state.ToneSrgbLinearization, _state.CdDarkBytes, _state.CdLightBytes);
+                _state.ToneSrgbLinearization, _state.CdDarkBytes, _state.CdLightBytes, _state.CdMusicSignature);
         }
 
         if (!string.Equals(identity, _sourceIdentity, StringComparison.Ordinal))
@@ -366,6 +369,14 @@ public partial class BurnViewModel : ObservableObject
             _sourceIdentity = identity;
             InvalidateConfirmation();
         }
+    }
+
+    /// <summary>The songs of a picture + music CD in the burn source line.</summary>
+    private string MusicSourceText()
+    {
+        string where = _state.CdMusicAtOuterRing ? L.T("外圈") : L.T("内圈");
+        string count = _state.CdMusicTracks.Count == 1 ? L.T("1 首歌") : L.F($"{_state.CdMusicTracks.Count} 首歌");
+        return L.F($" · {count}，位于{where}");
     }
 
     /// <summary>Re-reads the cached source, device and speed text. The source identity is
@@ -712,6 +723,13 @@ public partial class BurnViewModel : ObservableObject
                         SourceImageOuterRadiusMm = parameters.SamplingImageOuterRadiusMm,
                         UsableSectors = StreamBurnCapacity.Resolve(parameters.OutputSectors, capacity.WritableSectors, mediaKind),
                     };
+                    // Songs may still be converting; the layout is planned for this medium's capacity.
+                    if (_state.HasCdMusic && !_state.HasCdFiles)
+                    {
+                        await _design.Music.EnsurePreparedAsync();
+                    }
+
+                    CdMusicRequest? music = _state.CreateCdMusicRequest();
                     request = CreateCdBurnRequest(
                         compositePath,
                         parameters,
@@ -722,11 +740,23 @@ public partial class BurnViewModel : ObservableObject
                         _state.Tone,
                         device.Id,
                         selectedWriteSpeed.Speed,
-                        _state.CdPalette);
+                        _state.CdPalette,
+                        music);
                     contentDescription = request.MediaKind == OpticalBurnMediaKind.CdData
                         ? L.F($"CD 数据盘（DAO） · 文件位于{(_state.CdFilesAtOuterRing ? L.T("外圈") : L.T("内圈"))}")
                         : L.T("CD 音轨") + (_state.IsCdCustomPalette ? L.F($" · 浅色字节 {_state.CdPalette.Light}") : string.Empty);
-                    contentDescription += L.F($" · {parameters.OutputSectors} 扇区 · {request.ContentLength / (1024.0 * 1024.0):F1} MiB");
+                    string songList = string.Empty;
+                    if (music is not null)
+                    {
+                        CdMusicLayout layout = CdMusicLayout.Plan(music.Songs, parameters, music.Placement, music.GapSeconds);
+                        contentDescription += MusicSourceText()
+                            + L.F($" · 图案 {layout.PictureInnerRadiusMm:0.0}–{layout.PictureOuterRadiusMm:0.0} mm");
+                        songList = "\n" + string.Join("\n", layout.Songs.Select(song =>
+                            $"  {song.TrackNumber}. {song.Source.Title} ({(int)song.Source.Duration.TotalMinutes}:{song.Source.Duration.Seconds:00})"));
+                    }
+
+                    contentDescription += L.F($" · {parameters.OutputSectors} 扇区 · {request.ContentLength / (1024.0 * 1024.0):F1} MiB")
+                        + songList;
                 }
             }
 
@@ -826,7 +856,8 @@ public partial class BurnViewModel : ObservableObject
         ToneProfile tone,
         string deviceId,
         OpticalWriteSpeed? writeSpeed,
-        CdPalette? palette = null)
+        CdPalette? palette = null,
+        CdMusicRequest? music = null)
     {
         parameters.Validate();
         ToneProfile capturedTone = tone.Normalized();
@@ -834,6 +865,17 @@ public partial class BurnViewModel : ObservableObject
         {
             CdPalette capturedPalette = palette ?? CdPalette.Standard;
             capturedPalette.Validate(capturedTone.Levels);
+            if (music is not null)
+            {
+                // Songs and picture as separate tracks; the picture keeps the LBAs of a picture-only
+                // disc, and the burner checks IMAPI's track positions against this layout.
+                CdMusicLayout layout = CdMusicLayout.Plan(music.Songs, parameters, music.Placement, music.GapSeconds);
+                return new OpticalBurnRequest(deviceId, OpticalBurnMediaKind.CdAudio, layout.StreamBytes,
+                    (output, token) => CdMusicDiscGenerator.GenerateToStream(imagePath, output, layout, interleave,
+                        capturedTone, capturedPalette, cancellationToken: token),
+                    writeSpeed, CdTrackLayout: new CdDaoTrackLayout(layout.SpecialPregapSectors, layout.TrackSectors));
+            }
+
             return new OpticalBurnRequest(deviceId, OpticalBurnMediaKind.CdAudio, parameters.TotalBytes,
                 (output, token) => CdTrackGenerator.GenerateToStream(imagePath, output, parameters,
                     interleave, cancellationToken: token, audioByteOrder: CdAudioByteOrder.LittleEndian,

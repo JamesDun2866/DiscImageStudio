@@ -218,5 +218,21 @@
   "{0} 的值 '{1}' 不是有效的光盘字节，应为 AA 或 F2-A8 形式的十六进制。": {
     "zh-CN": "{0} 的值 '{1}' 不是有效的光盘字节，应为 AA 或 F2-A8 形式的十六进制。",
     "en": "{0} value '{1}' is not valid disc bytes; use hexadecimal such as AA or F2-A8."
+  },
+  "cd.music 需要 1–{0} 首歌。": {
+    "zh-CN": "cd.music 需要 1–{0} 首歌。",
+    "en": "cd.music needs 1–{0} songs."
+  },
+  "cd.music 中的每首歌都需要文件路径。": {
+    "zh-CN": "cd.music 中的每首歌都需要文件路径。",
+    "en": "Every song in cd.music needs a file path."
+  },
+  "cd.music.placement 的值 '{0}' 无效，应为 outer 或 inner。": {
+    "zh-CN": "cd.music.placement 的值 '{0}' 无效，应为 outer 或 inner。",
+    "en": "cd.music.placement '{0}' is not valid; use outer or inner."
+  },
+  "cd.music.gapSeconds 应在 0–{0} 秒之间。": {
+    "zh-CN": "cd.music.gapSeconds 应在 0–{0} 秒之间。",
+    "en": "cd.music.gapSeconds must be 0–{0} seconds."
   }
 }

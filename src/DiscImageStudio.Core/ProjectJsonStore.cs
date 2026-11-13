@@ -53,7 +53,29 @@ public sealed record ProjectBluRaySettings(bool InvertMapping = false);
 /// they stay readable by builds that predate it.</summary>
 public sealed record ProjectCdSettings(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DarkBytes = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LightBytes = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LightBytes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ProjectCdMusic? Music = null);
+
+/// <summary>One song of a picture + music CD: the chosen file (any format the app converts) and an
+/// optional title; a missing title means the file name.</summary>
+public sealed record ProjectMusicTrack(
+    string Path,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Title = null);
+
+/// <summary>The songs of a picture + music CD, in play order. <see cref="Placement"/> is "outer"
+/// (songs on the outer ring, the picture in the middle hidden in track 1's pregap) or "inner"
+/// (songs first, the picture as the last track); <see cref="GapSeconds"/> is the silence between
+/// songs.</summary>
+public sealed record ProjectCdMusic(
+    IReadOnlyList<ProjectMusicTrack> Tracks,
+    string Placement = ProjectCdMusic.OuterPlacement,
+    int GapSeconds = 2)
+{
+    public const string OuterPlacement = "outer";
+    public const string InnerPlacement = "inner";
+    public const int MaximumTracks = 98;
+    public const int MaximumGapSeconds = 10;
+}
 
 /// <summary>The on-disk project (.discproj): everything needed to reopen a disc design and
 /// regenerate its outputs. Images stay referenced by absolute path.
@@ -271,6 +293,29 @@ public static class ProjectJsonStore
         if ((dark ?? "0D") == (light ?? "AA"))
         {
             throw DiagnosticMessage.InvalidData($"cd 设置的深色与浅色字节不能相同。");
+        }
+
+        if (cd.Music is { } music)
+        {
+            if (music.Tracks is null || music.Tracks.Count is 0 or > ProjectCdMusic.MaximumTracks)
+            {
+                throw DiagnosticMessage.InvalidData($"cd.music 需要 1–{ProjectCdMusic.MaximumTracks} 首歌。");
+            }
+
+            if (music.Tracks.Any(track => track is null || string.IsNullOrWhiteSpace(track.Path)))
+            {
+                throw DiagnosticMessage.InvalidData($"cd.music 中的每首歌都需要文件路径。");
+            }
+
+            if (music.Placement is not (ProjectCdMusic.OuterPlacement or ProjectCdMusic.InnerPlacement))
+            {
+                throw DiagnosticMessage.InvalidData($"cd.music.placement 的值 '{music.Placement}' 无效，应为 outer 或 inner。");
+            }
+
+            if (music.GapSeconds is < 0 or > ProjectCdMusic.MaximumGapSeconds)
+            {
+                throw DiagnosticMessage.InvalidData($"cd.music.gapSeconds 应在 0–{ProjectCdMusic.MaximumGapSeconds} 秒之间。");
+            }
         }
     }
 

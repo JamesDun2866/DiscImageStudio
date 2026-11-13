@@ -1,5 +1,6 @@
 using DiscImageStudio.Localization;
 using System.Globalization;
+using System.IO;
 using DiscImageStudio.Cd;
 using DiscImageStudio.Core;
 using DiscImageStudio.Services;
@@ -34,6 +35,15 @@ internal static class ProjectSession
         state.DvdReadCompatibility = document.IsDvd && outputs.DvdReadCompatibility;
         state.CdDarkBytes = document.IsCd ? document.Cd?.DarkBytes ?? "0D" : "0D";
         state.CdLightBytes = document.IsCd ? document.Cd?.LightBytes ?? "AA" : "AA";
+        ProjectCdMusic? music = document.IsCd ? document.Cd?.Music : null;
+        state.CdMusicTracks.Clear();
+        foreach (ProjectMusicTrack track in music?.Tracks ?? [])
+        {
+            state.CdMusicTracks.Add(new CdMusicTrackItem(track.Path, track.Title));
+        }
+
+        state.CdMusicAtOuterRing = music?.Placement != ProjectCdMusic.InnerPlacement;
+        state.CdMusicGap = music is null || music.GapSeconds > 0;
 
         switch (document.Family)
         {
@@ -185,10 +195,22 @@ internal static class ProjectSession
             : tone;
     }
 
-    /// <summary>CD-only custom disc bytes; omitted (null) while the standard 0D/AA bytes are used.</summary>
+    /// <summary>CD-only custom disc bytes and songs; omitted (null) for a standard picture-only CD.</summary>
     public static ProjectCdSettings? CaptureCd(ProjectDocument current, DiscParametersState state)
     {
-        if (!current.IsCd || !state.IsCdCustomPalette)
+        if (!current.IsCd)
+        {
+            return null;
+        }
+
+        ProjectCdMusic? music = state.HasCdMusic
+            ? new ProjectCdMusic(
+                state.CdMusicTracks.Select(track => new ProjectMusicTrack(track.SourcePath,
+                    track.Title == Path.GetFileNameWithoutExtension(track.SourcePath) ? null : track.Title)).ToArray(),
+                state.CdMusicAtOuterRing ? ProjectCdMusic.OuterPlacement : ProjectCdMusic.InnerPlacement,
+                state.CdMusicGapSeconds)
+            : null;
+        if (!state.IsCdCustomPalette && music is null)
         {
             return null;
         }
@@ -196,7 +218,8 @@ internal static class ProjectSession
         CdPalette palette = state.CdPalette;
         return new ProjectCdSettings(
             palette.Dark == CdPalette.Standard.Dark ? null : palette.Dark.ToString(),
-            palette.Light == CdPalette.Standard.Light ? null : palette.Light.ToString());
+            palette.Light == CdPalette.Standard.Light ? null : palette.Light.ToString(),
+            music);
     }
 
     /// <summary>BD-only mapping polarity. CD/DVD projects never carry this section.</summary>

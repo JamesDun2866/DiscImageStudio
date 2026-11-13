@@ -907,6 +907,7 @@ public partial class ShellViewModel : ObservableObject
         nameof(DiscParametersState.ToneSrgbLinearization),
         nameof(DiscParametersState.CdLightBytes),
         nameof(DiscParametersState.CdDarkBytes),
+        nameof(DiscParametersState.CdMusicSignature),
     ];
 
     // Notifications that only re-render localized text. Relocalize re-raises exactly these

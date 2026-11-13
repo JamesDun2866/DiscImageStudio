@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DiscImageStudio.BluRay;
 using DiscImageStudio.Cd;
+using DiscImageStudio.Cd.Music;
 using DiscImageStudio.Core;
 using DiscImageStudio.Dvd;
 using DiscImageStudio.Imaging;
@@ -743,6 +744,11 @@ public partial class LivePreviewViewModel : ObservableObject
                 };
             }
             bool overlay = metadata is not null && metadata.Parameters.Sectors == parameters.Sectors;
+            CdTrackMetadata? trackMetadata = dataImage ? null : CdTrackMetadata.TryLoad(trackPath);
+            // A picture + music disc: its songs read back as noise; the overlay marks their ring.
+            bool musicOverlay = trackMetadata is { PictureStartLba: long pictureStart, PictureSectors: long pictureSectors }
+                && pictureStart >= 0 && pictureSectors > 0 && pictureStart + pictureSectors <= parameters.OutputSectors;
+            overlay |= musicOverlay;
             await StaWorker.RunAsync(() =>
             {
                 if (dataImage)
@@ -759,7 +765,12 @@ public partial class LivePreviewViewModel : ObservableObject
                     CdTrackGenerator.PreviewTrack(
                         trackPath, outputPath, parameters, outputSize,
                         CdDiscParameters.BytesPerSector / samplesPerSector, deinterleave, cancellationToken,
-                        CdTrackMetadata.TryLoad(trackPath)?.CreatePalette());
+                        trackMetadata?.CreatePalette());
+                    if (musicOverlay)
+                        FileRegionPreviewOverlay.ApplyCd(outputPath, parameters,
+                            checked((uint)trackMetadata!.PictureStartLba!.Value),
+                            checked((uint)(trackMetadata.PictureStartLba.Value + trackMetadata.PictureSectors!.Value)),
+                            cancellationToken);
                 }
                 return 0;
             });
@@ -820,7 +831,10 @@ public partial class LivePreviewViewModel : ObservableObject
                 ? _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc)
                 : string.Empty;
             bool filesAtOuterRing = _state.CdFilesAtOuterRing;
-            CdDataLayoutPlan? plan = await StaWorker.RunAsync(() =>
+            CdMusicRequest? music = dataDirectory.Length == 0 && _state.HasCdMusic && _state.PreparedCdMusic is { } songs
+                ? new CdMusicRequest(songs, _state.CdMusicPlacement, _state.CdMusicGapSeconds)
+                : null;
+            bool hasOverlay = await StaWorker.RunAsync(() =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 CdDataLayoutPlan? layout = dataDirectory.Length > 0
@@ -833,13 +847,22 @@ public partial class LivePreviewViewModel : ObservableObject
                         outputSize, samplesPerSector, tone, layout, cancellationToken);
                     FileRegionPreviewOverlay.ApplyCd(outputPath, actual,
                         layout.DrawingStartLba, layout.DrawingEndLbaExclusive, cancellationToken);
+                    return true;
                 }
-                else
+
+                if (music is not null)
                 {
-                    CdTrackGenerator.PreviewWarp(imagePath, outputPath, generated, actual,
-                        outputSize, samplesPerSector, tone, cancellationToken);
+                    CdMusicLayout musicLayout = CdMusicLayout.Plan(music.Songs, generated, music.Placement, music.GapSeconds);
+                    CdTrackGenerator.PreviewWarp(imagePath, outputPath, generated, actual, outputSize,
+                        samplesPerSector, tone, musicLayout.PictureStartLba, musicLayout.PictureSectors, cancellationToken);
+                    FileRegionPreviewOverlay.ApplyCd(outputPath, actual, checked((uint)musicLayout.PictureStartLba),
+                        checked((uint)musicLayout.PictureEndLba), cancellationToken);
+                    return true;
                 }
-                return layout;
+
+                CdTrackGenerator.PreviewWarp(imagePath, outputPath, generated, actual,
+                    outputSize, samplesPerSector, tone, cancellationToken);
+                return false;
             });
             cancellationToken.ThrowIfCancellationRequested();
             if (revision != _livePreviewRevision)
@@ -847,7 +870,7 @@ public partial class LivePreviewViewModel : ObservableObject
                 return;
             }
 
-            PublishPreview(outputPath, imagePath, "预览 - CD", plan is not null);
+            PublishPreview(outputPath, imagePath, "预览 - CD", hasOverlay);
             keepOutput = true;
             SetReadyStatus(() => L.F($"已实时更新 · 标定预览 · 灰度 {tone.Levels} 级")
                 + L.F($" · 抖动 {tone.DitherStrength * 100:0}% · {outputSize} px")

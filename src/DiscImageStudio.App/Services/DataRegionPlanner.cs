@@ -1,5 +1,6 @@
 using DiscImageStudio.BluRay;
 using DiscImageStudio.Cd;
+using DiscImageStudio.Cd.Music;
 using DiscImageStudio.Core;
 using DiscImageStudio.Dvd;
 using DiscImageStudio.Iso;
@@ -21,7 +22,10 @@ internal sealed record DataRegionInputs(
     double OuterRadiusMm,
     double PitchLinear,
     double PitchQuadratic,
-    double PitchCubic);
+    double PitchCubic,
+    IReadOnlyList<CdMusicSource>? Music = null,
+    CdMusicPlacement MusicPlacement = CdMusicPlacement.OuterRing,
+    int MusicGapSeconds = CdMusicLayout.DefaultGapSeconds);
 
 /// <summary>The layout planner rejected the data because it cannot fit the disc (or the
 /// family's format), as opposed to invalid geometry that hides the guide silently.</summary>
@@ -41,6 +45,12 @@ internal static class DataRegionPlanner
 {
     internal static IReadOnlyList<DesignViewModel.DataRegionMm>? Compute(DataRegionInputs inputs)
     {
+        if (inputs.Family == OpticalDiscFamily.CompactDisc && inputs.Directory.Length == 0
+            && inputs.Music is { Count: > 0 } music)
+        {
+            return ComputeCdMusic(inputs, music);
+        }
+
         if (inputs.Directory.Length == 0)
         {
             return null;
@@ -77,6 +87,34 @@ internal static class DataRegionPlanner
             plan.MetadataEndLbaExclusive, plan.FileDataStartLba, plan.DataEndLbaExclusive,
             FilesystemMetadataBudget.ReserveSectors(plan.FileCount),
             lba => parameters.RadiusFromByte((long)lba * CdDiscParameters.BytesPerSector));
+    }
+
+    /// <summary>The ring the songs of a picture + music CD occupy (with the guard before song 1
+    /// on the outer ring): the picture does not appear there.</summary>
+    private static IReadOnlyList<DesignViewModel.DataRegionMm> ComputeCdMusic(DataRegionInputs inputs,
+        IReadOnlyList<CdMusicSource> music)
+    {
+        CdDiscParameters parameters = new(
+            inputs.InnerRadiusMm,
+            inputs.OuterRadiusMm,
+            inputs.TotalSectors,
+            PitchLinear: inputs.PitchLinear,
+            PitchQuadratic: inputs.PitchQuadratic,
+            PitchCubic: inputs.PitchCubic,
+            UsableSectors: inputs.UsableSectors);
+        CdMusicLayout layout;
+        try
+        {
+            layout = CdMusicLayout.Plan(music, parameters, inputs.MusicPlacement, inputs.MusicGapSeconds);
+        }
+        catch (CdMusicCapacityException exception)
+        {
+            throw new DataRegionCapacityException(exception.Message, exception);
+        }
+
+        return layout.MusicOuterRadiusMm > layout.MusicInnerRadiusMm
+            ? [new DesignViewModel.DataRegionMm(layout.MusicInnerRadiusMm, layout.MusicOuterRadiusMm)]
+            : [];
     }
 
     private static IReadOnlyList<DesignViewModel.DataRegionMm> ComputeDvd(DataRegionInputs inputs)

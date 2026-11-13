@@ -1,4 +1,5 @@
 using DiscImageStudio.Localization;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DiscImageStudio.Core;
@@ -221,6 +222,16 @@ public partial class ExportViewModel : ObservableObject
     {
         string output = RequirePath(_state.CdOutputPath,
             _state.HasCdFiles ? L.T("请选择 CD ISO 输出位置。") : L.T("请选择 CD 音轨输出位置。"));
+        if (_state.HasCdMusic && !_state.HasCdFiles)
+        {
+            // Songs may still be converting; a picture + music CD is written as WAV + CUE.
+            await _design.Music.EnsurePreparedAsync();
+            if (!Path.GetExtension(output).Equals(".wav", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(L.T("带歌曲的 CD 需要导出为 .wav（附 CUE 曲目表）。"));
+            }
+        }
+
         CdDiscParameters parameters = new(
             ParameterParser.ParsePositiveDouble(_state.CdInnerRadius, L.T("内半径")),
             ParameterParser.ParsePositiveDouble(_state.CdOuterRadius, L.T("外半径")),
@@ -234,9 +245,11 @@ public partial class ExportViewModel : ObservableObject
             _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc),
             _state.CdFilesAtOuterRing,
             // Custom disc bytes are audio-only; a data disc keeps the standard bytes.
-            _state.HasCdFiles ? null : _state.CdPalette);
+            _state.HasCdFiles ? null : _state.CdPalette,
+            _state.CreateCdMusicRequest());
         if (await _shell.RunImageJobAsync(
-                _state.HasCdFiles ? L.T("正在生成 CD 数据盘 ISO…") : L.T("正在生成 CD 音轨…"),
+                _state.HasCdFiles ? L.T("正在生成 CD 数据盘 ISO…")
+                    : request.Music is not null ? L.T("正在生成带歌曲的 CD 音轨…") : L.T("正在生成 CD 音轨…"),
                 output, (progress, token) => CdImageGenerator.Generate(request, progress, token), request.ToString()))
             _state.CdTrackPath = output;
     }

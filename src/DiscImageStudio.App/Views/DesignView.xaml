@@ -246,7 +246,8 @@
                                                                 Text="{Binding State.CdDataDirectory}"
                                                                 ToolTip="{Binding State.CdDataDirectory}"
                                                                 ButtonLabel="{loc:Text Xaml.Browse}"
-                                                                Command="{Binding BrowseDataCommand}" />
+                                                                Command="{Binding BrowseDataCommand}"
+                                                                IsEnabled="{Binding Music.CanChooseFolder}" />
                                             <controls:VisibilityGate IsOpen="{Binding State.HasCdFiles}">
                                                 <StackPanel Margin="0,14,0,0">
                                                     <TextBlock Style="{StaticResource FieldLabel}"
@@ -266,6 +267,87 @@
                                             </controls:VisibilityGate>
                                             <TextBlock Style="{StaticResource HintText}" Margin="0,12,0,0"
                                                        Text="{loc:Text Xaml.UsesAnAudioTrackWithoutFilesSwitchesToA}" />
+                                            <!-- Songs for a picture + music CD. A CD holds either songs or
+                                                 on-disc files: each section is disabled while the other is used. -->
+                                            <StackPanel Margin="0,18,0,0">
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="{loc:Text Music.Title}"
+                                                           Margin="0,0,0,6" />
+                                                <ItemsControl ItemsSource="{Binding Music.Tracks}" Focusable="False">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,0,0,2">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="20" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0" Text="{Binding Number}"
+                                                                           Style="{StaticResource MicroText}" VerticalAlignment="Center" />
+                                                                <TextBlock Grid.Column="1" Text="{Binding Title}" Style="{StaticResource RowText}"
+                                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                                           ToolTip="{Binding SourcePath}" />
+                                                                <TextBlock Grid.Column="2" Text="{Binding StatusText}"
+                                                                           Style="{StaticResource MicroText}" Margin="8,0,4,0"
+                                                                           VerticalAlignment="Center" ToolTip="{Binding Error}" />
+                                                                <Button Grid.Column="3" Style="{StaticResource IconButton}"
+                                                                        Command="{Binding DataContext.Music.MoveUpCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        AutomationProperties.Name="{loc:Text Music.MoveUp}"
+                                                                        ToolTip="{loc:Text Music.MoveUp}">
+                                                                    <iconPacks:PackIconLucide Kind="ChevronUp" Width="14" Height="14" />
+                                                                </Button>
+                                                                <Button Grid.Column="4" Style="{StaticResource IconButton}"
+                                                                        Command="{Binding DataContext.Music.MoveDownCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        AutomationProperties.Name="{loc:Text Music.MoveDown}"
+                                                                        ToolTip="{loc:Text Music.MoveDown}">
+                                                                    <iconPacks:PackIconLucide Kind="ChevronDown" Width="14" Height="14" />
+                                                                </Button>
+                                                                <Button Grid.Column="5" Style="{StaticResource IconButton}"
+                                                                        Command="{Binding DataContext.Music.RemoveCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        AutomationProperties.Name="{loc:Text Music.Remove}"
+                                                                        ToolTip="{loc:Text Music.Remove}">
+                                                                    <iconPacks:PackIconLucide Kind="X" Width="14" Height="14" />
+                                                                </Button>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <Button Style="{StaticResource SecondaryButton}" Height="{StaticResource ControlHeight}"
+                                                        Content="{loc:Text Music.Add}" Command="{Binding Music.AddCommand}"
+                                                        HorizontalAlignment="Stretch" Margin="0,4,0,0" />
+                                                <controls:VisibilityGate IsOpen="{Binding State.HasCdMusic}">
+                                                    <StackPanel Margin="0,12,0,0">
+                                                        <TextBlock Style="{StaticResource FieldLabel}"
+                                                                   Text="{loc:Text Music.Placement}" Margin="0,0,0,6" />
+                                                        <controls:SegmentedControl LabelA="{loc:Text Xaml.InnerRing}" LabelB="{loc:Text Xaml.OuterRing}"
+                                                                                   IsSecondSelected="{Binding State.CdMusicAtOuterRing}" />
+                                                        <TextBlock Style="{StaticResource HintText}" Margin="0,8,0,0"
+                                                                   Text="{Binding Music.PlacementHint}" />
+                                                        <CheckBox Content="{loc:Text Music.Gap}"
+                                                                  IsChecked="{Binding State.CdMusicGap, Mode=TwoWay}"
+                                                                  Style="{StaticResource CompactCheckBox}" Margin="0,10,0,0" />
+                                                        <TextBlock Style="{StaticResource HintText}" Margin="0,10,0,0"
+                                                                   Text="{Binding Music.Summary}" />
+                                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                                                    Visibility="{Binding Music.HasWarning, Converter={StaticResource BoolToVisibility}}">
+                                                            <iconPacks:PackIconLucide Kind="TriangleAlert" Width="14" Height="14"
+                                                                                      Foreground="{DynamicResource DangerBrush}"
+                                                                                      VerticalAlignment="Top" Margin="0,2,0,0" />
+                                                            <TextBlock Text="{Binding Music.Warning}"
+                                                                       Foreground="{DynamicResource DangerBrush}"
+                                                                       Margin="6,0,0,0" TextWrapping="Wrap" MaxWidth="260" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </controls:VisibilityGate>
+                                            </StackPanel>
                                         </StackPanel>
                                     </controls:VisibilityGate>
                                     <controls:VisibilityGate IsOpen="{Binding IsDvd}">

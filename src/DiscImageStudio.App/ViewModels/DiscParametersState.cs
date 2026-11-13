@@ -1,8 +1,11 @@
 using DiscImageStudio.Localization;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using DiscImageStudio.BluRay;
 using DiscImageStudio.Cd;
+using DiscImageStudio.Cd.Music;
 using DiscImageStudio.Core;
 using DiscImageStudio.Core.Calibration;
 using DiscImageStudio.Iso;
@@ -51,6 +54,94 @@ public partial class DiscParametersState : ObservableObject
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(discPresetJsonPath);
         _discPresetJsonPath = discPresetJsonPath;
+        CdMusicTracks.CollectionChanged += OnCdMusicTracksChanged;
+    }
+
+    // ---- Picture + music CD ----
+
+    /// <summary>Songs of a picture + music CD, in play order. CD audio projects only: a CD holds
+    /// either songs or on-disc files, never both.</summary>
+    public ObservableCollection<CdMusicTrackItem> CdMusicTracks { get; } = [];
+
+    /// <summary>Songs on the outer ring (the default): the picture fills the middle of the disc,
+    /// hidden from players in track 1's pregap. Off: songs on the inner ring, and the picture is
+    /// the last track around them.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CdMusicSignature), nameof(CdMusicPlacement))]
+    private bool _cdMusicAtOuterRing = true;
+
+    /// <summary>2 seconds of silence between songs.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CdMusicSignature), nameof(CdMusicGapSeconds))]
+    private bool _cdMusicGap = true;
+
+    /// <summary>Bumped whenever a song finishes preparing or fails, so the design guide replans.</summary>
+    [ObservableProperty]
+    private int _cdMusicPreparedRevision;
+
+    public bool HasCdMusic => CdMusicTracks.Count > 0;
+
+    public CdMusicPlacement CdMusicPlacement => CdMusicAtOuterRing ? CdMusicPlacement.OuterRing : CdMusicPlacement.InnerRing;
+
+    public int CdMusicGapSeconds => CdMusicGap ? CdMusicLayout.DefaultGapSeconds : 0;
+
+    /// <summary>Songs, titles, placement and gap as one value: project dirty tracking and the burn
+    /// confirmation watch this name instead of the collection.</summary>
+    public string CdMusicSignature => string.Join("\u001f",
+        [CdMusicAtOuterRing ? "outer" : "inner", CdMusicGapSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+         .. CdMusicTracks.Select(track => track.SourcePath + "\u001e" + track.Title)]);
+
+    /// <summary>The prepared songs in play order, or null while any song is still converting or
+    /// could not be read.</summary>
+    public IReadOnlyList<CdMusicSource>? PreparedCdMusic => CdMusicTracks.All(track => track.Prepared is not null)
+        ? CdMusicTracks.Select(track => track.Prepared!).ToArray()
+        : null;
+
+    /// <summary>The songs for the generators; null for a picture-only or data disc. Callers wait
+    /// for preparation first (MusicViewModel.EnsurePreparedAsync).</summary>
+    public CdMusicRequest? CreateCdMusicRequest()
+    {
+        if (!HasCdMusic || HasCdFiles)
+        {
+            return null;
+        }
+
+        return PreparedCdMusic is { } songs
+            ? new CdMusicRequest(songs, CdMusicPlacement, CdMusicGapSeconds)
+            : throw new InvalidOperationException(L.T("还有歌曲正在转换或无法读取，请稍候或移除它。"));
+    }
+
+    private void OnCdMusicTracksChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (CdMusicTrackItem item in e.OldItems) item.PropertyChanged -= OnCdMusicTrackChanged;
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (CdMusicTrackItem item in e.NewItems) item.PropertyChanged += OnCdMusicTrackChanged;
+        }
+
+        for (int index = 0; index < CdMusicTracks.Count; index++)
+        {
+            CdMusicTracks[index].Number = index + 1;
+        }
+
+        OnPropertyChanged(nameof(HasCdMusic));
+        OnPropertyChanged(nameof(CdMusicSignature));
+        CdMusicPreparedRevision++;
+        // Songs are written as WAV + CUE only.
+        NormalizeCdOutputFormat();
+    }
+
+    private void OnCdMusicTrackChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CdMusicTrackItem.Prepared) or nameof(CdMusicTrackItem.Error)
+            && sender is CdMusicTrackItem item && CdMusicTracks.Contains(item))
+        {
+            CdMusicPreparedRevision++;
+        }
     }
 
     private IReadOnlyList<CdDiscPreset> _cdPresets = [ManualCdPreset];
@@ -282,6 +373,11 @@ public partial class DiscParametersState : ObservableObject
             || extension.Equals(".raw", StringComparison.OrdinalIgnoreCase)))
         {
             CdOutputPath = Path.ChangeExtension(output, ".iso");
+        }
+        else if (!HasCdFiles && HasCdMusic && extension.Equals(".raw", StringComparison.OrdinalIgnoreCase))
+        {
+            // A picture + music CD needs its CUE sheet for the track boundaries.
+            CdOutputPath = Path.ChangeExtension(output, ".wav");
         }
         else if (!HasCdFiles && extension.Equals(".iso", StringComparison.OrdinalIgnoreCase))
         {

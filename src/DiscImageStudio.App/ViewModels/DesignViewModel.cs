@@ -70,8 +70,12 @@ public partial class DesignViewModel : ObservableObject
         });
         Layers.CollectionChanged += Layers_CollectionChanged;
         Tone = new ToneViewModel(shell, state, this);
+        Music = new MusicViewModel(shell, state);
         RefreshDataRegionText();
     }
+
+    /// <summary>The songs of a picture + music CD (the "Disc contents" card).</summary>
+    public MusicViewModel Music { get; }
 
     /// <summary>The right rail's tone module: its preview projects the same composite this
     /// page renders through the engines' tone mapping.</summary>
@@ -82,6 +86,7 @@ public partial class DesignViewModel : ObservableObject
     internal void Relocalize()
     {
         Tone.Relocalize();
+        Music.Relocalize();
         RefreshDataRegionText();
     }
 
@@ -407,9 +412,14 @@ public partial class DesignViewModel : ObservableObject
     {
         if (DataRegionOverflow)
         {
-            DataRegionOverflowText = L.T("Xaml.DataRegionOverflow");
+            DataRegionOverflowText = OverflowText();
         }
     }
+
+    /// <summary>Songs that do not fit are reported as such; everything else as data.</summary>
+    private string OverflowText() => IsCd && _state.HasCdMusic && !_state.HasCdFiles
+        ? L.T("Music.Overflow")
+        : L.T("Xaml.DataRegionOverflow");
 
     // ---- Data region guide ----
 
@@ -440,6 +450,8 @@ public partial class DesignViewModel : ObservableObject
             or nameof(DiscParametersState.CdSectors) or nameof(DiscParametersState.CdUsableSectors)
             or nameof(DiscParametersState.CdPitchLinear) or nameof(DiscParametersState.CdPitchQuadratic)
             or nameof(DiscParametersState.CdPitchCubic)
+            or nameof(DiscParametersState.CdMusicPreparedRevision) or nameof(DiscParametersState.CdMusicAtOuterRing)
+            or nameof(DiscParametersState.CdMusicGap)
             or nameof(DiscParametersState.DvdDataDirectory) or nameof(DiscParametersState.DvdVolumeLabel)
             or nameof(DiscParametersState.DvdFilesAtOuterRing)
             or nameof(DiscParametersState.DvdOuterRingBleed)
@@ -530,7 +542,7 @@ public partial class DesignViewModel : ObservableObject
 
                 DataRegions = regions;
                 DataRegionOverflow = overflow;
-                DataRegionOverflowText = overflow ? L.T("Xaml.DataRegionOverflow") : string.Empty;
+                DataRegionOverflowText = overflow ? OverflowText() : string.Empty;
                 CanvasChanged?.Invoke();
             }
             while (_dataRegionPending);
@@ -611,7 +623,11 @@ public partial class DesignViewModel : ObservableObject
             ParameterParser.ParsePositiveDouble(outerText, L.T(outerPrompt)),
             ParameterParser.ParseDouble(pitchLinear, L.T("相对一次项")),
             ParameterParser.ParseDouble(pitchQuadratic, L.T("相对二次项")),
-            ParameterParser.ParseDouble(pitchCubic, L.T("相对三次项")));
+            ParameterParser.ParseDouble(pitchCubic, L.T("相对三次项")),
+            // Songs still converting have no length yet: the guide waits for all of them.
+            Family == OpticalDiscFamily.CompactDisc ? _state.PreparedCdMusic : null,
+            _state.CdMusicPlacement,
+            _state.CdMusicGapSeconds);
     }
 
     private static double ParseMm(string raw, double fallback)

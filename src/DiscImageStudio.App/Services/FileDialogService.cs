@@ -39,6 +39,19 @@ internal sealed class FileDialogService
         return dialog.ShowDialog(_ownerProvider()) == true ? dialog.FileNames : null;
     }
 
+    /// <summary>Multi-select song picker for picture + music CDs.</summary>
+    internal string[]? PickMusic()
+    {
+        OpenFileDialog dialog = new()
+        {
+            Title = L.T("添加歌曲"),
+            Filter = L.T("音乐文件") + "|" + MusicConversion.FileFilter + "|" + L.T("所有文件") + "|*.*",
+            CheckFileExists = true,
+            Multiselect = true,
+        };
+        return dialog.ShowDialog(_ownerProvider()) == true ? dialog.FileNames : null;
+    }
+
     internal string? PickOpen(string title, string filter)
     {
         OpenFileDialog dialog = new()

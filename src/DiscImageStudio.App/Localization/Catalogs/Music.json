@@ -1,0 +1,122 @@
+{
+  "Music.Title": {
+    "zh-CN": "歌曲（音乐 CD）",
+    "en": "Songs (music CD)"
+  },
+  "Music.Add": {
+    "zh-CN": "添加歌曲…",
+    "en": "Add songs…"
+  },
+  "Music.MoveUp": {
+    "zh-CN": "上移",
+    "en": "Move up"
+  },
+  "Music.MoveDown": {
+    "zh-CN": "下移",
+    "en": "Move down"
+  },
+  "Music.Remove": {
+    "zh-CN": "移除",
+    "en": "Remove"
+  },
+  "Music.Placement": {
+    "zh-CN": "歌曲位置",
+    "en": "Song placement"
+  },
+  "Music.Gap": {
+    "zh-CN": "歌曲之间留 2 秒静音",
+    "en": "2 seconds of silence between songs"
+  },
+  "Music.OuterHint": {
+    "zh-CN": "图案在中间，藏在第 1 首歌之前：CD 机从第 1 首歌开始播放，不会播放图案。",
+    "en": "The picture fills the middle, hidden before song 1: CD players start at song 1 and never play the picture."
+  },
+  "Music.InnerHint": {
+    "zh-CN": "歌曲在内圈，图案是外圈的最后一条音轨。",
+    "en": "The songs are on the inner ring; the picture is the last track, around them."
+  },
+  "Music.Overflow": {
+    "zh-CN": "歌曲超出光盘容量",
+    "en": "The songs do not fit on the disc"
+  },
+  "无法读取": {
+    "zh-CN": "无法读取",
+    "en": "Unreadable"
+  },
+  "正在转换…": {
+    "zh-CN": "正在转换…",
+    "en": "Converting…"
+  },
+  "还有歌曲正在转换或无法读取，请稍候或移除它。": {
+    "zh-CN": "还有歌曲正在转换或无法读取，请稍候或移除它。",
+    "en": "A song is still converting or cannot be read; wait for it or remove it."
+  },
+  "歌曲太多": {
+    "zh-CN": "歌曲太多",
+    "en": "Too many songs"
+  },
+  "一张 CD 在图案之外最多放 {0} 首歌。": {
+    "zh-CN": "一张 CD 在图案之外最多放 {0} 首歌。",
+    "en": "A CD holds at most {0} songs beside the picture."
+  },
+  "无法使用歌曲「{0}」：{1}": {
+    "zh-CN": "无法使用歌曲「{0}」：{1}",
+    "en": "Cannot use the song \"{0}\": {1}"
+  },
+  " · 正在准备歌曲…": {
+    "zh-CN": " · 正在准备歌曲…",
+    "en": " · preparing songs…"
+  },
+  " · 图案 {0:0.0}–{1:0.0} mm，占盘面 {2:P0}": {
+    "zh-CN": " · 图案 {0:0.0}–{1:0.0} mm，占盘面 {2:P0}",
+    "en": " · picture {0:0.0}–{1:0.0} mm, {2:P0} of the disc"
+  },
+  "图案是最后一条音轨，播放时是很响的噪声：听完歌曲后请停止播放。": {
+    "zh-CN": "图案是最后一条音轨，播放时是很响的噪声：听完歌曲后请停止播放。",
+    "en": "The picture is the last track and plays as loud noise: stop the player after the songs."
+  },
+  "歌曲占去了大部分盘面，图案只剩很小一块。": {
+    "zh-CN": "歌曲占去了大部分盘面，图案只剩很小一块。",
+    "en": "The songs take most of the disc; the picture keeps only a small area."
+  },
+  "歌曲太长，图案没有空间了：请移除一首歌。": {
+    "zh-CN": "歌曲太长，图案没有空间了：请移除一首歌。",
+    "en": "The songs leave no room for the picture: remove a song."
+  },
+  "1 首歌": {
+    "zh-CN": "1 首歌",
+    "en": "1 song"
+  },
+  "{0} 首歌": {
+    "zh-CN": "{0} 首歌",
+    "en": "{0} songs"
+  },
+  "添加歌曲": {
+    "zh-CN": "添加歌曲",
+    "en": "Add songs"
+  },
+  "音乐文件": {
+    "zh-CN": "音乐文件",
+    "en": "Music files"
+  },
+  "所有文件": {
+    "zh-CN": "所有文件",
+    "en": "All files"
+  },
+  "带歌曲的 CD 需要导出为 .wav（附 CUE 曲目表）。": {
+    "zh-CN": "带歌曲的 CD 需要导出为 .wav（附 CUE 曲目表）。",
+    "en": "A CD with songs is exported as .wav (with a CUE track sheet)."
+  },
+  "正在生成带歌曲的 CD 音轨…": {
+    "zh-CN": "正在生成带歌曲的 CD 音轨…",
+    "en": "Generating the CD with songs…"
+  },
+  " · {0}，位于{1}": {
+    "zh-CN": " · {0}，位于{1}",
+    "en": " · {0} on the {1}"
+  },
+  " · 图案 {0:0.0}–{1:0.0} mm": {
+    "zh-CN": " · 图案 {0:0.0}–{1:0.0} mm",
+    "en": " · picture {0:0.0}–{1:0.0} mm"
+  }
+}
