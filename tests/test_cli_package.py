@@ -39,6 +39,12 @@ def check_package(executable: Path) -> None:
         if refused.returncode == 0:
             raise ValueError("cd-generate accepted disc bytes outside the safety envelope")
 
+        run("cd-contrast-test", "--output", "contrast.wav", "--sectors", "2")
+        check_size("contrast.wav", 44 + 2 * 2352)
+        legend = json.loads((work / "contrast.wav.contrast.json").read_text(encoding="utf-8"))
+        if legend.get("format") != "cd-contrast-test-v1" or len(legend.get("predictions", [])) != 6:
+            raise ValueError("cd-contrast-test did not write its legend")
+
         run("cd-channel-report", "--patterns", "0D,AA,F2-A8", "--candidates", "1", "--output", "channel.json")
         report = json.loads((work / "channel.json").read_text(encoding="utf-8"))
         if report.get("format") != "cd-channel-report-v1" or len(report.get("patterns", [])) != 3:

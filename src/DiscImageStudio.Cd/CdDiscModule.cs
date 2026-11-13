@@ -108,6 +108,18 @@ public sealed class CdDiscModule : IOpticalDiscModule
                     new("deinterleave", "Undo CD-DA delay interleave", DiscOptionValueType.Boolean, DefaultValue: "true"),
                 ]),
             new DiscCommandDescriptor(
+                "cd-contrast-test",
+                "Generate the CD contrast test disc",
+                "Writes concentric bands of light-tone candidates between standard AA bands, with band numbers, "
+                    + "plus a legend (.contrast.json, .legend.png) for choosing custom light disc bytes.",
+                DiscModuleCapabilities.RawTrackGeneration,
+                [
+                    new("output", "Audio track (.wav/.raw)", DiscOptionValueType.OutputFile, Required: true),
+                    .. GeometryOptions,
+                    new("interleave", "CD-DA delay interleave", DiscOptionValueType.Boolean, DefaultValue: "true"),
+                    new("cue", "Write a CUE sheet next to the WAV track", DiscOptionValueType.Boolean, DefaultValue: "true"),
+                ]),
+            new DiscCommandDescriptor(
                 "cd-channel-report",
                 "Rank CD tone bytes with the channel model",
                 "Simulates CIRC, subcode and EFM for byte patterns and ranks dark/light candidates by on-disc texture, "
@@ -138,6 +150,7 @@ public sealed class CdDiscModule : IOpticalDiscModule
             "cd-preview-warp" => PreviewWarp(request, options, progress, cancellationToken),
             "cd-preview-track" => PreviewTrack(request, options, progress, cancellationToken),
             "cd-channel-report" => ChannelReport(request, options, progress, cancellationToken),
+            "cd-contrast-test" => ContrastTest(request, options, progress, cancellationToken),
             _ => throw new ArgumentException(
                 $"CD module does not support command '{request.Command}'.",
                 nameof(request)),
@@ -238,6 +251,31 @@ public sealed class CdDiscModule : IOpticalDiscModule
             0,
             $"CD track preview complete: output={output}",
             output);
+    }
+
+    private static DiscJobResult ContrastTest(
+        DiscJobRequest request,
+        CdCommandOptions options,
+        IProgress<DiscJobProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        Contrast.CdContrastTestResult result = Contrast.CdContrastTest.Generate(
+            options.Require("output"),
+            ReadParameters(options),
+            options.GetBoolean("interleave", true),
+            options.GetBoolean("cue", true),
+            value => progress?.Report(new DiscJobProgress(ModuleId, "generate",
+                $"CD contrast test {value.Fraction:P1}", value.Fraction, value.CompletedBytes,
+                value.TotalBytes, value.Elapsed)),
+            cancellationToken);
+        string bands = string.Join(", ", result.Bands
+            .Where(band => band.Role == Contrast.CdContrastBandRole.Candidate)
+            .Select(band => $"{band.Number}={band.Pattern} ({band.InnerRadiusMm:F1}-{band.OuterRadiusMm:F1} mm)"));
+        return new DiscJobResult(ModuleId, request.Command, 0,
+            $"CD contrast test complete ({Contrast.CdContrastTestLayout.CandidateSet}): {bands}; "
+                + $"legend={result.LegendPngPath}, output={result.TrackPath}"
+                + (result.CueSheetPath is null ? string.Empty : $", cue={result.CueSheetPath}"),
+            result.TrackPath);
     }
 
     private static DiscJobResult ChannelReport(

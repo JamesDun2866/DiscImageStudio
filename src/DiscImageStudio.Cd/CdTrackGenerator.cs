@@ -400,7 +400,8 @@ public static class CdTrackGenerator
     private static CdGenerationSummary GenerateParallelSamplesToStream(Func<long, byte> sampleGray,
         string summarySource, Stream output, CdDiscParameters parameters, bool interleave,
         Action<CdProgress>? progress, CancellationToken cancellationToken, string outputDescription,
-        CdAudioByteOrder audioByteOrder, ToneProfile tone, Func<long, uint>? sampleFour, CdPalette palette)
+        CdAudioByteOrder audioByteOrder, ToneProfile tone, Func<long, uint>? sampleFour, CdPalette palette,
+        bool rawBytes = false)
     {
         long totalBytes = parameters.TotalBytes;
         bool standardPalette = palette.IsStandard;
@@ -417,7 +418,15 @@ public static class CdTrackGenerator
             int length = sectors * CdDiscParameters.BytesPerSector;
             // Blocks start on a sector, so each even/odd byte pair stays inside one worker.
             CdPaletteEncoder encoder = new(palette, tone);
-            if (sampleFour is not null)
+            if (rawBytes)
+            {
+                for (int offset = 0; offset < length; offset++)
+                {
+                    if ((offset & 0xFFF) == 0) cancellationToken.ThrowIfCancellationRequested();
+                    buffer[offset] = sampleGray(firstByte + offset);
+                }
+            }
+            else if (sampleFour is not null)
             {
                 for (int offset = 0; offset < length; offset += 4)
                 {
@@ -490,6 +499,36 @@ public static class CdTrackGenerator
         stopwatch.Stop();
         progress?.Invoke(new CdProgress(totalBytes, totalBytes, stopwatch.Elapsed));
         return new(summarySource, outputDescription, parameters.OutputSectors, totalBytes, interleave, stopwatch.Elapsed);
+    }
+
+    /// <summary>
+    /// Writes exact logical CD-DA bytes (no tone mapping) through the same delay interleave, byte
+    /// order and parallel block pipeline as picture tracks. <paramref name="byteAt"/> is called
+    /// concurrently from worker threads and must be stateless.
+    /// </summary>
+    internal static CdGenerationSummary GenerateBytesToStream(
+        Func<long, byte> byteAt,
+        string summarySource,
+        Stream output,
+        CdDiscParameters parameters,
+        bool interleave,
+        Action<CdProgress>? progress,
+        CancellationToken cancellationToken,
+        string outputDescription,
+        CdAudioByteOrder audioByteOrder)
+    {
+        ArgumentNullException.ThrowIfNull(byteAt);
+        ArgumentNullException.ThrowIfNull(output);
+        if (!output.CanWrite)
+        {
+            throw new ArgumentException("CD output stream must be writable.", nameof(output));
+        }
+
+        CdAudioSamples.Validate(audioByteOrder);
+        parameters.Validate();
+        return GenerateParallelSamplesToStream(byteAt, summarySource, output, parameters, interleave, progress,
+            cancellationToken, outputDescription, audioByteOrder, ToneProfile.LegacyBinary, sampleFour: null,
+            CdPalette.Standard, rawBytes: true);
     }
 
     /// <summary>
