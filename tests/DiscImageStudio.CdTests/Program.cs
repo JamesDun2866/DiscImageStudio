@@ -40,10 +40,17 @@ if (args is ["--channel"])
     return;
 }
 
+if (args is ["--music"])
+{
+    MusicDiscTests.Run();
+    return;
+}
+
 GoldenOutputTests.Run();
 ChannelModelTests.Run();
 PaletteTests.Run();
 ContrastTestTests.Run();
 ProjectCdSettingsTests.Run();
+MusicDiscTests.Run();
 
 Console.WriteLine("cd-tests: all checks passed");

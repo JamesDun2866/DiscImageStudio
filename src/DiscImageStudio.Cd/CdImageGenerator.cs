@@ -1,6 +1,14 @@
+using DiscImageStudio.Cd.Music;
 using DiscImageStudio.Core;
 
 namespace DiscImageStudio.Cd;
+
+/// <summary>Songs for a picture + music CD: CD-format WAVs, where they go, and the silence
+/// between them.</summary>
+public sealed record CdMusicRequest(
+    IReadOnlyList<CdMusicSource> Songs,
+    CdMusicPlacement Placement = CdMusicPlacement.OuterRing,
+    int GapSeconds = CdMusicLayout.DefaultGapSeconds);
 
 /// <summary>A CD audio or data-image export, shared by graphical and command-line hosts.</summary>
 public sealed record CdImageRequest(
@@ -13,7 +21,8 @@ public sealed record CdImageRequest(
     string? DataDirectory = null,
     string VolumeLabel = "CD_IMAGE",
     bool FilesAtOuterRing = false,
-    CdPalette? Palette = null);
+    CdPalette? Palette = null,
+    CdMusicRequest? Music = null);
 
 public static class CdImageGenerator
 {
@@ -29,6 +38,26 @@ public static class CdImageGenerator
         CdPalette palette = request.Palette ?? CdPalette.Standard;
         palette.Validate(request.Tone.Levels);
         string? dataDirectory = request.DataDirectory?.Trim();
+        if (request.Music is { } music)
+        {
+            if (!string.IsNullOrEmpty(dataDirectory))
+            {
+                throw new ArgumentException(
+                    "A CD holds either on-disc files (a data disc) or songs (an audio disc), not both.", nameof(request));
+            }
+
+            CdMusicLayout layout = CdMusicLayout.Plan(music.Songs, request.Parameters, music.Placement, music.GapSeconds);
+            CdGenerationSummary musicSummary = CdMusicDiscGenerator.Generate(request.SourceImage, request.OutputPath,
+                layout, request.Interleave, request.Tone, palette,
+                value => progress?.Report(new DiscJobProgress(CdDiscModule.ModuleId, "generate",
+                    $"CD progress {value.Fraction:P1}", value.Fraction, value.CompletedBytes,
+                    value.TotalBytes, value.Elapsed)), cancellationToken);
+            return new DiscImageResult(musicSummary.OutputTrack,
+                $"CD picture + music disc complete: {layout}, {layout.StreamSectors} sectors, "
+                + (palette.IsStandard ? string.Empty : $"disc bytes={palette}, ")
+                + $"output={musicSummary.OutputTrack}, cue={musicSummary.CueSheetPath}");
+        }
+
         if (!string.IsNullOrEmpty(dataDirectory))
         {
             if (!palette.IsStandard)

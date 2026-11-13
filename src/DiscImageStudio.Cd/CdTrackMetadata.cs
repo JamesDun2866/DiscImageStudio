@@ -8,6 +8,8 @@ namespace DiscImageStudio.Cd;
 /// Generation parameters recorded next to a produced track as <c>&lt;track&gt;.json</c>.
 /// The live preview reads them back so a track made by an earlier run, or imported from another
 /// machine, is read back with the geometry and interleave it was actually generated with.
+/// A picture + music disc also records the picture's LBA range and where the songs are
+/// (<c>outer</c> or <c>inner</c>); its file still starts at LBA 0.
 /// </summary>
 public sealed record CdTrackMetadata(
     string SourceImage,
@@ -29,7 +31,10 @@ public sealed record CdTrackMetadata(
     long? UsableSectors = null,
     double? SourceImageOuterRadiusMm = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PaletteDark = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PaletteLight = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PaletteLight = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? PictureStartLba = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? PictureSectors = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MusicPlacement = null)
 {
     internal const string FormatName = "cd-da-track-v1";
 

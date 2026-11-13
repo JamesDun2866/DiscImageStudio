@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using DiscImageStudio.Cd.Music;
 using DiscImageStudio.Core;
 
 namespace DiscImageStudio.Cd;
@@ -52,6 +53,15 @@ public sealed class CdDiscModule : IOpticalDiscModule
         new("allow-unvetted", "Allow bytes outside the shipped palette's DC envelope", DiscOptionValueType.Boolean, DefaultValue: "false"),
     ];
 
+    /// <summary>Songs for a picture + music CD (audio output only).</summary>
+    private static readonly IReadOnlyList<DiscOptionDefinition> MusicOptions =
+    [
+        new("music", "Songs: a CD-format WAV or an .m3u8 playlist of them", DiscOptionValueType.InputFile),
+        new("music-position", "Where the songs go (outer: picture in the middle, hidden from players)",
+            DiscOptionValueType.Choice, DefaultValue: "outer", Choices: ["outer", "inner"]),
+        new("music-gap", "Silence between songs", DiscOptionValueType.Integer, DefaultValue: "2", Unit: "s"),
+    ];
+
     private static readonly DiscModuleDescriptor ModuleDescriptor = new(
         ModuleId,
         "CD",
@@ -63,7 +73,8 @@ public sealed class CdDiscModule : IOpticalDiscModule
             new DiscCommandDescriptor(
                 "cd-generate",
                 "Generate CD audio or data image",
-                "Without files, writes WAV/CUE or RAW audio; with --data-dir, writes a Mode 1 ISO with inner/outer-ring files.",
+                "Without files, writes WAV/CUE or RAW audio; with --music, a picture + music CD as WAV/CUE; "
+                    + "with --data-dir, writes a Mode 1 ISO with inner/outer-ring files.",
                 DiscModuleCapabilities.RawTrackGeneration | DiscModuleCapabilities.DataImageGeneration | DiscModuleCapabilities.HybridFilesystem,
                 [
                     new("input", "Source image", DiscOptionValueType.InputFile, Required: true),
@@ -76,6 +87,7 @@ public sealed class CdDiscModule : IOpticalDiscModule
                     new("cue", "Write a CUE sheet next to the WAV track", DiscOptionValueType.Boolean, DefaultValue: "true"),
                     .. ToneOptions,
                     .. PaletteOptions,
+                    .. MusicOptions,
                 ]),
             new DiscCommandDescriptor(
                 "cd-preview-warp",
@@ -93,6 +105,7 @@ public sealed class CdDiscModule : IOpticalDiscModule
                     new("file-position", "File position", DiscOptionValueType.Choice, DefaultValue: "inner", Choices: ["inner", "outer"]),
                     new("size", "Preview size", DiscOptionValueType.Integer, DefaultValue: "1600", Unit: "px"),
                     new("samples-per-sector", "Samples per sector", DiscOptionValueType.Integer, DefaultValue: "16"),
+                    .. MusicOptions,
                 ]),
             new DiscCommandDescriptor(
                 "cd-preview-track",
@@ -174,7 +187,8 @@ public sealed class CdDiscModule : IOpticalDiscModule
             options.GetString("data-dir", string.Empty),
             options.GetString("volume-label", "CD_IMAGE"),
             ReadFilePosition(options),
-            ReadPalette(options));
+            ReadPalette(options),
+            ReadMusic(options));
         DiscImageResult result = CdImageGenerator.Generate(image, progress, cancellationToken);
         return new DiscJobResult(ModuleId, request.Command, 0, result.Summary, result.OutputPath);
     }
@@ -200,6 +214,22 @@ public sealed class CdDiscModule : IOpticalDiscModule
             return new DiscJobResult(ModuleId, request.Command, 0,
                 $"CD data geometry preview complete: output={output}", output);
         }
+        if (ReadMusic(options) is { } music)
+        {
+            if (dataDirectory.Length > 0)
+            {
+                throw new ArgumentException("A CD holds either on-disc files or songs, not both.");
+            }
+
+            CdMusicLayout layout = CdMusicLayout.Plan(music.Songs, generated, music.Placement, music.GapSeconds);
+            CdTrackGenerator.PreviewWarp(options.Require("input"), output, generated,
+                ReadMeasuredParameters(options, generated), options.GetInt("size", 1600),
+                options.GetInt("samples-per-sector", 16), ReadTone(options), layout.PictureStartLba,
+                layout.PictureSectors, cancellationToken);
+            return new DiscJobResult(ModuleId, request.Command, 0,
+                $"CD picture + music geometry preview complete: {layout}, output={output}", output);
+        }
+
         CdTrackGenerator.PreviewWarp(
             options.Require("input"),
             output,
@@ -321,6 +351,24 @@ public sealed class CdDiscModule : IOpticalDiscModule
             options.Contains("usable-sectors") ? options.GetLong("usable-sectors", 0)
                 : options.Contains("sectors") ? null : fallback?.UsableSectors,
             options.Contains("sectors") || options.Contains("usable-sectors") ? null : fallback?.SourceImageOuterRadiusMm);
+    }
+
+    private static CdMusicRequest? ReadMusic(CdCommandOptions options)
+    {
+        string music = options.GetString("music", string.Empty).Trim();
+        if (music.Length == 0)
+        {
+            return null;
+        }
+
+        CdMusicPlacement placement = options.GetString("music-position", "outer").ToLowerInvariant() switch
+        {
+            "outer" => CdMusicPlacement.OuterRing,
+            "inner" => CdMusicPlacement.InnerRing,
+            _ => throw new ArgumentException("--music-position must be outer or inner."),
+        };
+        return new CdMusicRequest(CdMusicPlaylist.Read(music), placement,
+            options.GetInt("music-gap", CdMusicLayout.DefaultGapSeconds));
     }
 
     private static bool ReadFilePosition(CdCommandOptions options)

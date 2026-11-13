@@ -46,6 +46,49 @@ internal static class CdWaveFile
         return cuePath;
     }
 
+    /// <summary>
+    /// CUE sheet of a picture + music disc: one WAV, one track per song. On the outer-ring layout
+    /// track 1 starts with index 00 at 00:00:00, the hidden picture (the convention rippers use for
+    /// "hidden track one audio": the file starts at LBA 0, the burner adds the 2-second silence
+    /// before it). On the inner-ring layout the picture is the last track, titled as a warning.
+    /// </summary>
+    internal static string WriteMusicCue(string wavePath, Music.CdMusicLayout layout)
+    {
+        StringBuilder cue = new();
+        cue.Append("REM COMMENT \"Disc Image Studio picture + music CD\"\r\n");
+        cue.Append($"FILE \"{Path.GetFileName(wavePath)}\" WAVE\r\n");
+        foreach (Music.CdMusicSong song in layout.Songs)
+        {
+            cue.Append($"  TRACK {song.TrackNumber:00} AUDIO\r\n");
+            cue.Append($"    TITLE \"{CueText(song.Source.Title)}\"\r\n");
+            if (song.TrackNumber == 1 && layout.SpecialPregapSectors > 0)
+            {
+                cue.Append("    INDEX 00 00:00:00\r\n");
+            }
+
+            cue.Append($"    INDEX 01 {Music.CdMusicLayout.Msf(song.StartLba)}\r\n");
+        }
+
+        if (layout.Placement == Music.CdMusicPlacement.InnerRing)
+        {
+            cue.Append($"  TRACK {layout.Songs.Count + 1:00} AUDIO\r\n");
+            cue.Append($"    TITLE \"{Music.CdMusicDiscGenerator.PictureTrackTitle}\"\r\n");
+            cue.Append($"    INDEX 01 {Music.CdMusicLayout.Msf(layout.PictureStartLba)}\r\n");
+        }
+
+        string cuePath = Path.ChangeExtension(wavePath, ".cue");
+        File.WriteAllText(cuePath, cue.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        return cuePath;
+    }
+
+    /// <summary>CUE strings cannot escape quotes, and CD-Text titles hold 80 characters.</summary>
+    internal static string CueText(string text)
+    {
+        string clean = new(text.Select(character => character == '"' ? '\'' : char.IsControl(character) ? ' ' : character).ToArray());
+        clean = clean.Trim();
+        return clean.Length <= 80 ? clean : clean[..80];
+    }
+
     internal static (long Offset, long Length) ReadAudioRange(Stream input)
     {
         using BinaryReader reader = new(input, Encoding.ASCII, leaveOpen: true);

@@ -401,9 +401,19 @@ public static class CdTrackGenerator
         string summarySource, Stream output, CdDiscParameters parameters, bool interleave,
         Action<CdProgress>? progress, CancellationToken cancellationToken, string outputDescription,
         CdAudioByteOrder audioByteOrder, ToneProfile tone, Func<long, uint>? sampleFour, CdPalette palette,
-        bool rawBytes = false)
+        bool rawBytes = false, long rangeFirstSector = 0, long? rangeSectors = null)
     {
-        long totalBytes = parameters.TotalBytes;
+        // A range writes only those sectors of the disc (a picture beside music tracks). Sampling,
+        // tone mapping, palette parity and dithering keep using global positions, so the bytes
+        // match the whole-disc track at the same LBAs; the interleaver starts empty at the range.
+        long outputSectors = rangeSectors ?? parameters.OutputSectors;
+        if (rangeFirstSector < 0 || outputSectors <= 0 || rangeFirstSector + outputSectors > parameters.OutputSectors)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rangeSectors),
+                "The picture range must lie inside the disc's output sectors.");
+        }
+
+        long totalBytes = outputSectors * CdDiscParameters.BytesPerSector;
         bool standardPalette = palette.IsStandard;
         CddaInterleaver? cddaInterleaver = interleave ? new CddaInterleaver(audioByteOrder) : null;
         byte[]? plainSector = interleave ? null : new byte[CdDiscParameters.BytesPerSector];
@@ -414,7 +424,7 @@ public static class CdTrackGenerator
 
         void Fill(long firstSector, byte[] buffer, int sectors)
         {
-            long firstByte = firstSector * CdDiscParameters.BytesPerSector;
+            long firstByte = (rangeFirstSector + firstSector) * CdDiscParameters.BytesPerSector;
             int length = sectors * CdDiscParameters.BytesPerSector;
             // Blocks start on a sector, so each even/odd byte pair stays inside one worker.
             CdPaletteEncoder encoder = new(palette, tone);
@@ -492,13 +502,52 @@ public static class CdTrackGenerator
             }
         }
 
-        CdBlockPipeline.Run(parameters.OutputSectors, CdDiscParameters.BytesPerSector, Fill, Consume, cancellationToken);
+        CdBlockPipeline.Run(outputSectors, CdDiscParameters.BytesPerSector, Fill, Consume, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         cddaInterleaver?.Flush(output);
         output.Flush();
         stopwatch.Stop();
         progress?.Invoke(new CdProgress(totalBytes, totalBytes, stopwatch.Elapsed));
-        return new(summarySource, outputDescription, parameters.OutputSectors, totalBytes, interleave, stopwatch.Elapsed);
+        return new(summarySource, outputDescription, outputSectors, totalBytes, interleave, stopwatch.Elapsed);
+    }
+
+    /// <summary>
+    /// Picture bytes for the disc sectors [<paramref name="firstSector"/>, +<paramref name="sectorCount"/>)
+    /// only, as the picture part of a disc that also holds music tracks. The bytes equal those of the
+    /// whole-disc picture track at the same LBAs, except within one delay-interleave span after the
+    /// range start, where the interleaver has no earlier picture bytes to carry.
+    /// </summary>
+    internal static CdGenerationSummary GeneratePictureRangeToStream(
+        string imagePath,
+        Stream output,
+        CdDiscParameters parameters,
+        bool interleave,
+        long firstSector,
+        long sectorCount,
+        CdAudioByteOrder audioByteOrder,
+        ToneProfile? tone,
+        CdPalette? palette,
+        Action<CdProgress>? progress,
+        CancellationToken cancellationToken,
+        bool useSimdSampling = true)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        if (!output.CanWrite)
+        {
+            throw new ArgumentException("CD output stream must be writable.", nameof(output));
+        }
+
+        CdAudioSamples.Validate(audioByteOrder);
+        parameters.Validate();
+        ToneProfile effectiveTone = (tone ?? ToneProfile.LegacyBinary).Normalized();
+        CdPalette effectivePalette = palette ?? CdPalette.Standard;
+        effectivePalette.Validate(effectiveTone.Levels);
+        string sourceFullPath = Path.GetFullPath(imagePath);
+        CdImageSampler sampler = new(RasterImage.Load(sourceFullPath), parameters);
+        return GenerateParallelSamplesToStream(sampler.Sample, sourceFullPath, output, parameters, interleave,
+            progress, cancellationToken, "music-disc-picture", audioByteOrder, effectiveTone,
+            useSimdSampling && sampler.SupportsSimd ? sampler.SampleFour : null, effectivePalette,
+            rangeFirstSector: firstSector, rangeSectors: sectorCount);
     }
 
     /// <summary>
@@ -565,20 +614,45 @@ public static class CdTrackGenerator
         int samplesPerSector,
         ToneProfile tone,
         CancellationToken cancellationToken = default)
+        => PreviewWarp(imagePath, outputPath, generated, actual, outputSize, samplesPerSector, tone,
+            pictureFirstSector: 0, pictureSectors: null, cancellationToken);
+
+    /// <summary>Geometry preview of a picture that occupies only the sectors
+    /// [<paramref name="pictureFirstSector"/>, +<paramref name="pictureSectors"/>) of the disc,
+    /// as on a disc that also holds music; the rest of the disc stays unpainted.</summary>
+    public static void PreviewWarp(
+        string imagePath,
+        string outputPath,
+        CdDiscParameters generated,
+        CdDiscParameters actual,
+        int outputSize,
+        int samplesPerSector,
+        ToneProfile tone,
+        long pictureFirstSector,
+        long? pictureSectors,
+        CancellationToken cancellationToken = default)
     {
         generated.Validate();
         actual.Validate();
         ValidatePreview(outputSize, samplesPerSector);
+        long rangeSectors = pictureSectors ?? generated.OutputSectors - pictureFirstSector;
+        if (pictureFirstSector < 0 || rangeSectors <= 0 || pictureFirstSector + rangeSectors > generated.OutputSectors)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pictureSectors),
+                "The picture range must lie inside the disc's output sectors.");
+        }
+
         tone = tone.Normalized();
         RasterImage source = RasterImage.Load(Path.GetFullPath(imagePath));
         CdImageSampler sampler = new(source, generated);
         GrayPreview preview = new(outputSize, actual);
         long step = Math.Max(1, CdDiscParameters.BytesPerSector / samplesPerSector);
-        long totalBytes = generated.TotalBytes;
+        long firstByte = pictureFirstSector * CdDiscParameters.BytesPerSector;
+        long totalBytes = (pictureFirstSector + rangeSectors) * CdDiscParameters.BytesPerSector;
         long sampleNumber = 0;
         uint packedSamples = 0;
         long packedGroup = -1;
-        for (long globalByte = 0; globalByte < totalBytes; globalByte += step)
+        for (long globalByte = firstByte; globalByte < totalBytes; globalByte += step)
         {
             if ((sampleNumber & 0x3FFF) == 0)
             {
