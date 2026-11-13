@@ -22,6 +22,10 @@ internal static class TempFiles
         "bd-live-",
     ];
 
+    // Songs converted to CD-format WAVs for picture + music discs, and their partial writes.
+    private const string MusicPrefix = "music-";
+    private static readonly string[] MusicExtensions = [".wav", ".partial"];
+
     private static readonly string[] ManagedNames = ["design-thumbnail.png"];
 
     // Static initializers run in textual order: the Lazy must exist before the field below reads it.
@@ -222,6 +226,12 @@ internal static class TempFiles
     internal static bool IsManagedCacheFile(string path)
     {
         string name = Path.GetFileName(path);
+        if (name.StartsWith(MusicPrefix, StringComparison.OrdinalIgnoreCase)
+            && MusicExtensions.Any(extension => name.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
         if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
             && !name.EndsWith(".png.json", StringComparison.OrdinalIgnoreCase))
         {

@@ -207,6 +207,7 @@ CdDataRawImageTests.Run();
 CdDataSubchannelModeTests.Run();
 CdRawImageByteOrderTests.Run();
 CdMusicImapiLayoutTests.Run();
+MusicConversionTests.Run();
 CdBinaryTests.Run();
 CdPreviewMaskTests.Run();
 CdSimdSamplingTests.Run();
