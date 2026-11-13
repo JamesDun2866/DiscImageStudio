@@ -25,7 +25,7 @@
   },
   "Music.Gap": {
     "zh-CN": "歌曲之间留 2 秒静音",
-    "en": "2 seconds of silence between songs"
+    "en": "2-second gap between songs"
   },
   "Music.OuterHint": {
     "zh-CN": "图案在中间，藏在第 1 首歌之前：CD 机从第 1 首歌开始播放，不会播放图案。",
