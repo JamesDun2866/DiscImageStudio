@@ -25,9 +25,9 @@ internal static class CdMusicImapiLayoutTests
         {
             // Music on the inner ring: two songs, then the picture as the final track.
             Check(new CdDaoTrackLayout(0, [300, 451, 600]), sectorType, "inner-ring music");
-            // Music on the outer ring: 150 silent sectors, a 600-sector picture and a 75-sector
-            // guard form track 1's hidden pregap; the songs are the tracks.
-            Check(new CdDaoTrackLayout(150 + 600 + 75, [300, 451]), sectorType, "outer-ring music");
+            // Music on the outer ring: a 600-sector picture and a 75-sector guard continue track 1's
+            // hidden pregap after IMAPI's own 150 silent sectors; the songs are the tracks.
+            Check(new CdDaoTrackLayout(600 + 75, [300, 451]), sectorType, "outer-ring music");
         }
 
         Console.WriteLine("cd-music-imapi-layout: passed (multi-track and hidden-pregap DAO images keep every "
@@ -167,7 +167,7 @@ internal static class CdMusicImapiLayoutTests
 
             bool adr1 = (q[0] & 15) == 1;
             Require(!adr1 || q[1] != 0x00, $"{context}: no lead-in packet follows the program area start (LBA {current})");
-            long contentSector = current - layout.ContentStartLba;
+            long contentSector = current;
             if (contentSector >= 0 && contentSector < layout.ContentSectors)
             {
                 Require(main.AsSpan(0, AudioBytes).SequenceEqual(content.AsSpan(checked((int)(contentSector * AudioBytes)), AudioBytes)),
@@ -255,7 +255,8 @@ internal static class CdMusicImapiLayoutTests
 
         if (lba < layout.FirstTrackLba)
         {
-            // Native IMAPI counts the pregap down to 1 at the last sector before index 01.
+            // Native IMAPI counts the pregap (its own 150 sectors plus any special pregap) down to 1
+            // at the last sector before index 01.
             track = 1;
             index = 0;
             relative = layout.FirstTrackLba - lba;

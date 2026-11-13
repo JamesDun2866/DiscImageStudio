@@ -2,13 +2,13 @@ namespace DiscImageStudio.Burning;
 
 /// <summary>
 /// Track structure of a multi-track CD audio DAO burn, counted in 2352-byte sectors of the
-/// content stream, which holds the tracks back to back.
-/// <para>Without a special pregap the content starts at LBA 0, after IMAPI's standard silent
-/// 2-second pregap, and the tracks follow each other without gaps.</para>
-/// <para>With a special pregap the content starts at LBA -150 (the start of the program area):
-/// its first <see cref="SpecialPregapSectors"/> sectors are track 1's index 00, which players
-/// skip ("hidden track one audio"), and track 1's index 01 starts at
-/// LBA <c>SpecialPregapSectors - 150</c>.</para>
+/// content stream, which holds the tracks back to back. The content always starts at LBA 0:
+/// IMAPI writes the standard silent 2-second pregap (LBA -150…-1) itself, and the tracks follow
+/// each other without gaps.
+/// <para>A special pregap continues track 1's index 00 from LBA 0: the first
+/// <see cref="SpecialPregapSectors"/> content sectors are hidden from players, which start at track
+/// 1's index 01, LBA <c>SpecialPregapSectors</c> ("hidden track one audio"). Native IMAPI accepts
+/// it only before the first track is added (verified on the Windows CI runner).</para>
 /// A picture on the disc only lines up when every byte keeps its planned LBA, so the image
 /// session compares these numbers with what IMAPI built before anything is written.
 /// </summary>
@@ -29,15 +29,13 @@ public sealed record CdDaoTrackLayout
         TrackSectors = trackSectors.ToArray();
     }
 
-    /// <summary>Sectors of track 1's index 00 supplied in the content; 0 keeps IMAPI's own
-    /// silent pregap.</summary>
+    /// <summary>Sectors of track 1's index 00 supplied at the start of the content, after IMAPI's
+    /// own silent pregap; 0 for none.</summary>
     public long SpecialPregapSectors { get; }
 
     public IReadOnlyList<long> TrackSectors { get; }
 
-    public long ContentStartLba => SpecialPregapSectors == 0 ? 0 : -StandardPregapSectors;
-
-    public long FirstTrackLba => SpecialPregapSectors == 0 ? 0 : SpecialPregapSectors - StandardPregapSectors;
+    public long FirstTrackLba => SpecialPregapSectors;
 
     public long ContentSectors => SpecialPregapSectors + TrackSectors.Sum();
 
