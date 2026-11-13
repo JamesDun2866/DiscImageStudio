@@ -1,5 +1,6 @@
 """Smoke-test a published CLI from a working directory outside the checkout."""
 
+import json
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,11 @@ def check_package(executable: Path) -> None:
         check_size("track.wav", 44 + 2 * 2352)
         if 'FILE "track.wav" WAVE' not in (work / "track.cue").read_text(encoding="utf-8-sig"):
             raise ValueError("CUE does not reference the generated WAV")
+
+        run("cd-channel-report", "--patterns", "0D,AA,F2-A8", "--candidates", "1", "--output", "channel.json")
+        report = json.loads((work / "channel.json").read_text(encoding="utf-8"))
+        if report.get("format") != "cd-channel-report-v1" or len(report.get("patterns", [])) != 3:
+            raise ValueError("cd-channel-report did not describe the three requested patterns")
 
         run("solve", "--image", "input image.png", "--iso-output", "dvd.iso",
             "--total-sectors", "160", "--fill-sectors", "160")

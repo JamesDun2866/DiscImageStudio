@@ -97,6 +97,19 @@ public sealed class CdDiscModule : IOpticalDiscModule
                     new("byte-step", "Byte sampling interval", DiscOptionValueType.Integer, DefaultValue: "48"),
                     new("deinterleave", "Undo CD-DA delay interleave", DiscOptionValueType.Boolean, DefaultValue: "true"),
                 ]),
+            new DiscCommandDescriptor(
+                "cd-channel-report",
+                "Rank CD tone bytes with the channel model",
+                "Simulates CIRC, subcode and EFM for byte patterns and ranks dark/light candidates by on-disc texture, "
+                    + "keeping only those inside the shipped palette's DC envelope.",
+                DiscModuleCapabilities.None,
+                [
+                    new("output", "Report (.json or .csv)", DiscOptionValueType.OutputFile, Required: true),
+                    new("patterns", "Comma-separated patterns such as 0D,AA,F2-44; default all 256 bytes", DiscOptionValueType.String),
+                    new("pairs", "Also screen alternating byte pairs", DiscOptionValueType.Boolean, DefaultValue: "false"),
+                    new("candidates", "Candidates per tone", DiscOptionValueType.Integer, DefaultValue: "8"),
+                    new("velocity", "Linear velocity", DiscOptionValueType.Decimal, DefaultValue: "1200", Unit: "mm/s"),
+                ]),
         ]);
 
     public DiscModuleDescriptor Descriptor => ModuleDescriptor;
@@ -114,6 +127,7 @@ public sealed class CdDiscModule : IOpticalDiscModule
             "cd-generate" => Generate(request, options, progress, cancellationToken),
             "cd-preview-warp" => PreviewWarp(request, options, progress, cancellationToken),
             "cd-preview-track" => PreviewTrack(request, options, progress, cancellationToken),
+            "cd-channel-report" => ChannelReport(request, options, progress, cancellationToken),
             _ => throw new ArgumentException(
                 $"CD module does not support command '{request.Command}'.",
                 nameof(request)),
@@ -210,6 +224,33 @@ public sealed class CdDiscModule : IOpticalDiscModule
             request.Command,
             0,
             $"CD track preview complete: output={output}",
+            output);
+    }
+
+    private static DiscJobResult ChannelReport(
+        DiscJobRequest request,
+        CdCommandOptions options,
+        IProgress<DiscJobProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        string output = Path.GetFullPath(options.Require("output"));
+        progress?.Report(new DiscJobProgress(ModuleId, "report", "Simulating the CD channel…"));
+        string patternText = options.GetString("patterns", string.Empty).Trim();
+        IReadOnlyList<CdBytePattern>? patterns = patternText.Length == 0
+            ? null
+            : patternText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(CdBytePattern.Parse).Distinct().ToArray();
+        Physical.CdChannelReportDocument report = Physical.CdChannelReport.Build(
+            patterns,
+            options.GetBoolean("pairs", false),
+            options.GetInt("candidates", 8),
+            options.GetDouble("velocity", CdDiscParameters.StandardLinearVelocityMmPerSecond),
+            cancellationToken);
+        Physical.CdChannelReport.Save(report, output);
+        return new DiscJobResult(ModuleId, request.Command, 0,
+            $"CD channel report complete: {report.Patterns.Count} patterns, "
+                + $"dark candidates {string.Join(' ', report.DarkCandidates.Select(candidate => candidate.Pattern))}, "
+                + $"light candidates {string.Join(' ', report.LightCandidates.Select(candidate => candidate.Pattern))}, output={output}",
             output);
     }
 

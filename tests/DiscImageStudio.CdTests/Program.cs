@@ -11,6 +11,24 @@ if (args is ["--print-golden"])
     return;
 }
 
+if (args is ["--assess", string darkText, string lightText])
+{
+    // Developer aid: explain why a dark/light pair passes or fails the safety envelope.
+    var assessment = DiscImageStudio.Cd.Physical.CdPatternSafety.AssessPair(
+        DiscImageStudio.Cd.CdBytePattern.Parse(darkText), DiscImageStudio.Cd.CdBytePattern.Parse(lightText));
+    Console.WriteLine($"envelope: {assessment.Envelope}");
+    Console.WriteLine($"worst:    {assessment.Worst}");
+    Console.WriteLine($"safe:     {assessment.Safe} {assessment.FailingScenario}");
+    return;
+}
+
+if (args is ["--channel"])
+{
+    ChannelModelTests.Run();
+    return;
+}
+
 GoldenOutputTests.Run();
+ChannelModelTests.Run();
 
 Console.WriteLine("cd-tests: all checks passed");
