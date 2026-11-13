@@ -141,7 +141,7 @@ The CLI reads PNG, JPEG, BMP and GIF, using the first frame of animated images. 
 | `calibrate` | Calibration projection: sample the DVD source image using the generation geometry and project it onto the disc using the measured geometry |
 | `simulate` | Simulate readback of a generated DVD ISO using measured radii |
 | `selftest` | Run deterministic regression self-tests for the DVD engine |
-| `cd-generate` | Generate WAV + CUE / RAW audio tracks when no files are included on the disc; generate a CD data disc ISO when `--data-dir` is specified |
+| `cd-generate` | Generate WAV + CUE / RAW audio tracks when no files are included on the disc; with `--music`, a picture + music CD (WAV + multi-track CUE, see [MUSIC_DISC.md](docs/MUSIC_DISC.md)); generate a CD data disc ISO when `--data-dir` is specified |
 | `cd-preview-warp` | Calibration projection: project the CD source image using measured geometry |
 | `cd-preview-track` | Render an existing WAV or RAW CD-DA audio track using calibrated geometry (readback simulation) |
 | `cd-contrast-test` | Generate the light-byte contrast test disc (numbered concentric bands plus a legend) for choosing custom disc bytes; see [CONTRAST_TEST.md](docs/CONTRAST_TEST.md) |

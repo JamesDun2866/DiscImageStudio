@@ -141,7 +141,7 @@ CLI 可读取 PNG、JPEG、BMP 和 GIF，使用动画图片的第一帧。下面
 | `calibrate` | 标定投影：按生成几何从 DVD 源图片取样，按实测几何投到盘面 |
 | `simulate` | 按实测半径对生成的 DVD ISO 做读回模拟 |
 | `selftest` | 运行 DVD 引擎的确定性回归自检 |
-| `cd-generate` | 无随盘文件时生成 WAV + CUE / RAW 音轨；指定 `--data-dir` 时生成 CD 数据盘 ISO |
+| `cd-generate` | 无随盘文件时生成 WAV + CUE / RAW 音轨；指定 `--music` 时生成图案 + 音乐 CD（WAV + 多轨 CUE，见 [MUSIC_DISC.md](docs/MUSIC_DISC.md)）；指定 `--data-dir` 时生成 CD 数据盘 ISO |
 | `cd-preview-warp` | 标定投影：按实测几何投影 CD 源图片 |
 | `cd-preview-track` | 按标定几何渲染已有的 WAV 或 RAW CD-DA 音轨（读回模拟） |
 | `cd-contrast-test` | 生成浅色字节对比度测试盘（编号同心圈 + 图例），用于挑选自定义光盘字节，见 [CONTRAST_TEST.md](docs/CONTRAST_TEST.md) |
