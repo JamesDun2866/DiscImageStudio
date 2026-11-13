@@ -70,6 +70,14 @@ DiscImageStudio.exe cd-generate --input picture.png --output cd-track.wav `
 
 读回预览默认 1600 px、每扇区 16 个采样，并把落在同一像素的采样**累加平均**。旧版固定 900 px、每扇区 2 个采样且后写覆盖，稀疏采样会在中间调留下白点，看起来像报纸网点；提高采样密度后同一盘面才呈现连续影调。预览页的“设计投影”默认把实测几何设为与工程几何一致，打开工程即得到中性投影；填入实测半径后才会显示两套几何的偏差。
 
+## 自定义光盘字节
+
+2 级影调可以用自定义字节替换 `0D`／`AA`：单个字节（如 `B6`）或按逻辑字节奇偶交替的字节对（如 `F2-A8`）。使用字节对时，每个偶/奇字节对只判定一次深浅，不会被拆开。命令行用 `--palette-dark`、`--palette-light`；应用内在设计页「影调」面板选择对比度测试盘的圈号。标准字节的生成路径保持逐字节不变。
+
+自定义字节只用于音轨：4 级影调、数据盘（`--data-dir`）和标定图案仍使用标准字节。命令行会先用信道模型做直流安全检查，超出现有调色板范围的组合需要 `--allow-unvetted true` 才会生成。所用字节写入音轨 sidecar 的 `paletteDark`、`paletteLight`（标准字节时省略），读回预览据此显示明暗。如何挑选字节见 [CONTRAST_TEST.md](CONTRAST_TEST.md)。
+
+English: two-level tone can replace `0D`/`AA` with custom disc bytes — a single byte such as `B6` or a pair alternating by logical byte parity such as `F2-A8`, decided once per even/odd pair. They apply to audio tracks only, pass a channel-model DC safety check (override with `--allow-unvetted true`), and are recorded in the track sidecar as `paletteDark`/`paletteLight`. See [CONTRAST_TEST.md](CONTRAST_TEST.md).
+
 ## 已确认的问题
 
 2026-09-12 的用户实盘对照：同一份既有 RAW，用 cdrecord 的 `-audio` 和 `speed` 正常；添加 `-swab` 即可复现重影。这确认了既有 RAW 应按 cdrecord 默认的大端音频输入解释。

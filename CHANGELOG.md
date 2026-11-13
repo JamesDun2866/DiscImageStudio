@@ -10,6 +10,8 @@
 - 设计页占用区引导改用 CD、DVD、BD 的真实布局规划器，并按可用（可写）容量计算，包含文件系统元数据、逐文件扇区取整与对齐；与 #96 的碎片化放置共用与图片无关的元数据预留。外圈放置文件时同时标出内圈元数据，支持多个环形区域。文件夹或盘片参数变化后延迟合并计算，图片编辑不再触发重算。
 - 生成 CD／DVD 数据盘 ISO 时校验卷标长度：超过 Joliet 的 16 个字符会在写入前报错，不再静默截断；导出页的卷标输入限制为 16 个字符并显示提示，蓝光 UDF 卷标不受影响。
 - 关于页在 GitHub 按钮左侧新增「检查更新」：从上游 GitHub Release 的 `latest.json` 获取正式版信息，按当前处理器架构下载便携 EXE，核对长度与 SHA-256 后替换并重启；替换失败或新版本启动即退出时恢复旧 EXE，应用目录不可写时提示手动下载。更新包与清单未签名，完整性只相对发布清单有意义。
+- 新增 CD 对比度测试盘与自定义光盘字节：按 ECMA-130 实现参考信道模型（延迟交织、CIRC 校验并反相、子码、EFM 合并位），在完整信道比特流上为深浅字节排序，并以现有调色板为直流安全上限；独立复现了审计记录中纯 `0D`／`AA`／`63` 的最大 |DSV| 与低频占比。模型显示 `0D` 已是安全范围内最暗的纹理，测试盘因此只改变浅色：6 个带编号的同心候选圈（交替字节对最多比 `AA` 多约 10% 跳变）各自夹在标准 `AA` 圈之间。刻录页可改为刻录测试盘，设计页「影调」面板可选择圈号作为浅色字节（仅音轨、2 级）；命令行新增 `cd-contrast-test`、`cd-channel-report` 与 `cd-generate --palette-dark/--palette-light`。标准字节的输出逐字节不变。详见 [CONTRAST_TEST.md](docs/CONTRAST_TEST.md)。
+- 修正 CD_AUDIO_COMPATIBILITY.md 中关于 CD DAO 仍保留 3 扇区 overburn 容差的过时描述：自 1.5.0 起音轨与数据盘都严格遵守 lead-out 上限。
 
 ### English
 
@@ -24,6 +26,8 @@
 - Removed the "Show data occupancy area" toggle; the blue guide is always visible.
 - Validate volume-label length when generating CD/DVD data ISOs: labels longer than Joliet's 16 characters now fail before writing instead of being silently truncated. The export page limits label input to 16 characters with a hint; Blu-ray UDF labels are unaffected.
 - Add "Check for updates" to the About page, left of the GitHub button. It reads the stable release manifest (`latest.json`) from upstream GitHub Releases, downloads the portable EXE for the current processor architecture, verifies its length and SHA-256, then replaces the running file and restarts. A failed replacement, or a new build that exits during startup, restores the old EXE; a non-writable application folder prompts a manual download. The manifest and EXE remain unsigned, so integrity only holds relative to the published manifest.
+- Add the CD contrast test disc and custom disc bytes. A reference channel model per ECMA-130 (delay interleave, CIRC with inverted parity, subcode, EFM merging bits) ranks dark/light bytes on the full channel bit stream and uses the shipped palette as a DC safety envelope; it independently reproduces the audit's max |DSV| and low-frequency shares for pure `0D`/`AA`/`63`. The model shows `0D` is already the darkest safe texture, so the test disc varies the light tone only: six numbered concentric candidate bands, each between standard `AA` bands. Alternating byte pairs give up to about 10 % more transitions than `AA`. The burn page can write the test disc instead of the picture, and the design page's Tone panel picks a band as the light bytes (audio tracks, two levels). New CLI: `cd-contrast-test`, `cd-channel-report` and `cd-generate --palette-dark/--palette-light`. Standard-byte output is unchanged byte for byte. See [CONTRAST_TEST.md](docs/CONTRAST_TEST.md).
+- Correct CD_AUDIO_COMPATIBILITY.md, which still described a 3-sector overburn tolerance for CD DAO; since 1.5.0 audio and data discs both stop at the lead-out limit.
 
 ## [1.5.0] - 2026-11-07
 

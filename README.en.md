@@ -144,6 +144,8 @@ The CLI reads PNG, JPEG, BMP and GIF, using the first frame of animated images. 
 | `cd-generate` | Generate WAV + CUE / RAW audio tracks when no files are included on the disc; generate a CD data disc ISO when `--data-dir` is specified |
 | `cd-preview-warp` | Calibration projection: project the CD source image using measured geometry |
 | `cd-preview-track` | Render an existing WAV or RAW CD-DA audio track using calibrated geometry (readback simulation) |
+| `cd-contrast-test` | Generate the light-byte contrast test disc (numbered concentric bands plus a legend) for choosing custom disc bytes; see [CONTRAST_TEST.md](docs/CONTRAST_TEST.md) |
+| `cd-channel-report` | Rank CD dark/light bytes with the CIRC/EFM channel model and check them against the DC safety envelope |
 | `bd-generate` | Generate a complete BD-R ISO and write an `<iso>.json` sidecar |
 | `bd-info` / `bd-probe` / `bd-encode` | Export BD parameters, raw payload probes, or diagnostics for a single ECC cluster |
 
