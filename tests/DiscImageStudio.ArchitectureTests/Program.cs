@@ -121,6 +121,8 @@ DiscModuleCatalog catalog = new(
 
 Equal(3, catalog.Modules.Count, "module count");
 Equal(OpticalDiscFamily.CompactDisc, catalog.Resolve("cd-generate").Descriptor.Family, "CD routing");
+Equal(OpticalDiscFamily.CompactDisc, catalog.Resolve("cd-contrast-test").Descriptor.Family, "CD contrast test routing");
+Equal(OpticalDiscFamily.CompactDisc, catalog.Resolve("cd-channel-report").Descriptor.Family, "CD channel report routing");
 Equal(OpticalDiscFamily.Dvd, catalog.Resolve("solve").Descriptor.Family, "DVD routing");
 Equal(OpticalDiscFamily.BluRay, catalog.Resolve("bd-generate").Descriptor.Family, "Blu-ray routing");
 Equal(OpticalDiscFamily.BluRay, catalog.Resolve("bd-probe").Descriptor.Family, "Blu-ray probe routing");
@@ -275,6 +277,7 @@ UpdateTests.Run();
 RelocalizationTests.Run();
 CalibrationReturnButtonTests.Run();
 BurnWriteSpeedSelectionTests.Run();
+ContrastToolsTests.Run();
 
 Console.WriteLine("architecture-selftest: all checks passed");
 return;

@@ -53,6 +53,48 @@ public partial class ToneViewModel : ObservableObject
         _state.PropertyChanged += State_PropertyChanged;
         _design.PropertyChanged += Design_PropertyChanged;
         _design.CompositeRendered += Design_CompositeRendered;
+        CdLightBytesOptions = BuildCdLightBytesOptions();
+    }
+
+    /// <summary>One entry of the CD light-bytes picker: the standard bytes or a contrast-test band.</summary>
+    public sealed record CdLightBytesOption(string Bytes, int? Band, string Label);
+
+    /// <summary>Standard AA plus the numbered bands of the contrast test disc
+    /// (<see cref="DiscImageStudio.Cd.Contrast.CdContrastTestLayout"/>); every band is pre-checked
+    /// against the DC envelope with the standard dark byte.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<CdLightBytesOption> _cdLightBytesOptions = [];
+
+    public CdLightBytesOption? SelectedCdLightBytesOption
+    {
+        get
+        {
+            CdBytePattern light = _state.CdPalette.Light;
+            return CdLightBytesOptions.FirstOrDefault(option => CdBytePattern.Parse(option.Bytes) == light)
+                ?? new CdLightBytesOption(light.ToString(), null, L.F($"自定义 · {light}"));
+        }
+        set
+        {
+            if (value is not null && !string.Equals(_state.CdLightBytes, value.Bytes, StringComparison.Ordinal))
+            {
+                _state.CdLightBytes = value.Bytes;
+            }
+        }
+    }
+
+    private static IReadOnlyList<CdLightBytesOption> BuildCdLightBytesOptions()
+    {
+        List<CdLightBytesOption> options =
+        [
+            new(CdPalette.Standard.Light.ToString(), null, L.F($"标准 · {CdPalette.Standard.Light}")),
+        ];
+        for (int band = 1; band <= DiscImageStudio.Cd.Contrast.CdContrastTestLayout.LightCandidates.Count; band++)
+        {
+            CdBytePattern pattern = DiscImageStudio.Cd.Contrast.CdContrastTestLayout.LightCandidate(band);
+            options.Add(new CdLightBytesOption(pattern.ToString(), band, L.F($"测试盘第 {band} 圈 · {pattern}")));
+        }
+
+        return options;
     }
 
     /// <summary>Exposed for the module's two-way bindings to the shared parameters.</summary>
@@ -82,7 +124,12 @@ public partial class ToneViewModel : ObservableObject
 
     /// <summary>The status line is the module's only cached string; the picture itself needs
     /// no redraw for a language switch.</summary>
-    internal void Relocalize() => TonePreviewStatus = ComposeTonePreviewStatus();
+    internal void Relocalize()
+    {
+        TonePreviewStatus = ComposeTonePreviewStatus();
+        CdLightBytesOptions = BuildCdLightBytesOptions();
+        OnPropertyChanged(nameof(SelectedCdLightBytesOption));
+    }
 
     private string ComposeTonePreviewStatus()
     {
@@ -142,6 +189,11 @@ public partial class ToneViewModel : ObservableObject
 
     private void State_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(DiscParametersState.CdLightBytes) or nameof(DiscParametersState.CdDarkBytes))
+        {
+            OnPropertyChanged(nameof(SelectedCdLightBytesOption));
+        }
+
         if (e.PropertyName is nameof(DiscParametersState.ToneDitherStrength)
             or nameof(DiscParametersState.ToneLevels)
             or nameof(DiscParametersState.ToneBrightness)
@@ -475,6 +527,8 @@ public partial class ToneViewModel : ObservableObject
         _state.ToneLevels = ToneProfile.Photo.Levels;
         _state.ToneBrightness = ToneProfile.Photo.Brightness;
         _state.ToneSrgbLinearization = ToneProfile.Photo.SrgbLinearization;
+        _state.CdLightBytes = CdPalette.Standard.Light.ToString();
+        _state.CdDarkBytes = CdPalette.Standard.Dark.ToString();
     }
 
     private BluRayDiscParameters ReadBluRayPreviewParameters()

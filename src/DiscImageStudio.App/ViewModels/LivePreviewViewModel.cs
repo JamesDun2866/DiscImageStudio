@@ -755,9 +755,11 @@ public partial class LivePreviewViewModel : ObservableObject
                 }
                 else
                 {
+                    // Custom disc bytes are recorded in the track's sidecar.
                     CdTrackGenerator.PreviewTrack(
                         trackPath, outputPath, parameters, outputSize,
-                        CdDiscParameters.BytesPerSector / samplesPerSector, deinterleave, cancellationToken);
+                        CdDiscParameters.BytesPerSector / samplesPerSector, deinterleave, cancellationToken,
+                        CdTrackMetadata.TryLoad(trackPath)?.CreatePalette());
                 }
                 return 0;
             });

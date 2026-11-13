@@ -32,6 +32,15 @@
                                        Margin="0,6,0,0" />
                         </StackPanel>
                     </Border>
+                    <controls:VisibilityGate IsOpen="{Binding CanBurnContrastTest}" Margin="0,14,0,0">
+                        <StackPanel>
+                            <CheckBox Content="{loc:Text ContrastTest.BurnTestDisc}"
+                                      IsChecked="{Binding BurnContrastTest}" IsEnabled="{Binding IsSetupEnabled}"
+                                      AutomationProperties.Name="{loc:Text ContrastTest.BurnTestDisc}" />
+                            <TextBlock Text="{loc:Text ContrastTest.BurnTestDiscHint}" Style="{StaticResource HintText}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </controls:VisibilityGate>
                     <controls:VisibilityGate IsOpen="{Binding IsDvdBurn}" Margin="0,14,0,0">
                         <StackPanel>
                             <controls:DvdReadCompatibilityToggle IsChecked="{Binding DvdReadCompatibility}"

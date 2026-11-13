@@ -1,5 +1,6 @@
 using DiscImageStudio.Localization;
 using System.Globalization;
+using DiscImageStudio.Cd;
 using DiscImageStudio.Core;
 using DiscImageStudio.Services;
 
@@ -31,6 +32,8 @@ internal static class ProjectSession
         state.ToneBrightness = tone.Brightness;
         state.ToneSrgbLinearization = tone.SrgbLinearization;
         state.DvdReadCompatibility = document.IsDvd && outputs.DvdReadCompatibility;
+        state.CdDarkBytes = document.IsCd ? document.Cd?.DarkBytes ?? "0D" : "0D";
+        state.CdLightBytes = document.IsCd ? document.Cd?.LightBytes ?? "AA" : "AA";
 
         switch (document.Family)
         {
@@ -180,6 +183,20 @@ internal static class ProjectSession
             && tone.Levels == ToneProfile.FourLevels
             ? tone with { Levels = ToneProfile.TwoLevels }
             : tone;
+    }
+
+    /// <summary>CD-only custom disc bytes; omitted (null) while the standard 0D/AA bytes are used.</summary>
+    public static ProjectCdSettings? CaptureCd(ProjectDocument current, DiscParametersState state)
+    {
+        if (!current.IsCd || !state.IsCdCustomPalette)
+        {
+            return null;
+        }
+
+        CdPalette palette = state.CdPalette;
+        return new ProjectCdSettings(
+            palette.Dark == CdPalette.Standard.Dark ? null : palette.Dark.ToString(),
+            palette.Light == CdPalette.Standard.Light ? null : palette.Light.ToString());
     }
 
     /// <summary>BD-only mapping polarity. CD/DVD projects never carry this section.</summary>

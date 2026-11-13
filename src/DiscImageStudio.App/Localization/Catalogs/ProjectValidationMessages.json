@@ -206,5 +206,17 @@
   "必须是大于 0 的有限数值": {
     "zh-CN": "必须是大于 0 的有限数值",
     "en": "must be a finite number greater than 0"
+  },
+  "cd 设置只用于 CD 工程。": {
+    "zh-CN": "cd 设置只用于 CD 工程。",
+    "en": "cd settings are only valid for CD projects."
+  },
+  "cd 设置的深色与浅色字节不能相同。": {
+    "zh-CN": "cd 设置的深色与浅色字节不能相同。",
+    "en": "The dark and light disc bytes in the cd settings must differ."
+  },
+  "{0} 的值 '{1}' 不是有效的光盘字节，应为 AA 或 F2-A8 形式的十六进制。": {
+    "zh-CN": "{0} 的值 '{1}' 不是有效的光盘字节，应为 AA 或 F2-A8 形式的十六进制。",
+    "en": "{0} value '{1}' is not valid disc bytes; use hexadecimal such as AA or F2-A8."
   }
 }

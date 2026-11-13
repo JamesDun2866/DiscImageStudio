@@ -759,6 +759,7 @@ public partial class ShellViewModel : ObservableObject
             Outputs = ProjectSession.CaptureOutputs(current, State),
             Tone = ProjectSession.CaptureTone(current, State),
             BluRay = ProjectSession.CaptureBluRay(current, State),
+            Cd = ProjectSession.CaptureCd(current, State),
             Layers = Design.CaptureLayers(),
             ThumbnailPngBase64 = await Design.RenderThumbnailAsync() ?? current.ThumbnailPngBase64,
             ModifiedUtc = DateTimeOffset.Now,
@@ -904,6 +905,8 @@ public partial class ShellViewModel : ObservableObject
         nameof(DiscParametersState.ToneLevels),
         nameof(DiscParametersState.ToneBrightness),
         nameof(DiscParametersState.ToneSrgbLinearization),
+        nameof(DiscParametersState.CdLightBytes),
+        nameof(DiscParametersState.CdDarkBytes),
     ];
 
     // Notifications that only re-render localized text. Relocalize re-raises exactly these

@@ -232,7 +232,9 @@ public partial class ExportViewModel : ObservableObject
         CdImageRequest request = new(compositePath, output, parameters, _state.Tone,
             _state.CdInterleave, _state.CdWriteCue, _state.CdDataDirectory.Trim(),
             _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc),
-            _state.CdFilesAtOuterRing);
+            _state.CdFilesAtOuterRing,
+            // Custom disc bytes are audio-only; a data disc keeps the standard bytes.
+            _state.HasCdFiles ? null : _state.CdPalette);
         if (await _shell.RunImageJobAsync(
                 _state.HasCdFiles ? L.T("正在生成 CD 数据盘 ISO…") : L.T("正在生成 CD 音轨…"),
                 output, (progress, token) => CdImageGenerator.Generate(request, progress, token), request.ToString()))

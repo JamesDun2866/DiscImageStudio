@@ -1,0 +1,46 @@
+{
+  "ContrastTest.LightBytes": {
+    "zh-CN": "浅色字节（CD 音轨）",
+    "en": "Light disc bytes (CD audio)"
+  },
+  "ContrastTest.LightBytesHint": {
+    "zh-CN": "先刻录对比度测试盘，再选出比两侧 AA 圈更亮的圈号。仅用于音轨，并使用 2 级影调。",
+    "en": "Burn the contrast test disc first, then pick the band that looks brighter than the AA bands beside it. Audio tracks only; uses 2 tone levels."
+  },
+  "ContrastTest.BurnTestDisc": {
+    "zh-CN": "改为刻录对比度测试盘（不写入图片）",
+    "en": "Burn the contrast test disc instead of the picture"
+  },
+  "ContrastTest.BurnTestDiscHint": {
+    "zh-CN": "测试盘按本工程的盘片参数写入 6 圈编号的浅色候选字节，每圈两侧是标准 AA 圈，最内圈是标准深色 0D。请用与正式刻录相同的速度刻录。",
+    "en": "Writes six numbered light-byte candidates for this project's disc, each between standard AA bands, with the standard dark 0D at the hub. Burn it at the speed you will use for the real disc."
+  },
+  "标准 · {0}": {
+    "zh-CN": "标准 · {0}",
+    "en": "Standard · {0}"
+  },
+  "测试盘第 {0} 圈 · {1}": {
+    "zh-CN": "测试盘第 {0} 圈 · {1}",
+    "en": "Test band {0} · {1}"
+  },
+  "自定义 · {0}": {
+    "zh-CN": "自定义 · {0}",
+    "en": "Custom · {0}"
+  },
+  " · 浅色字节 {0}": {
+    "zh-CN": " · 浅色字节 {0}",
+    "en": " · light bytes {0}"
+  },
+  "对比度测试盘 · 浅色字节": {
+    "zh-CN": "对比度测试盘 · 浅色字节",
+    "en": "Contrast test disc · light bytes"
+  },
+  "\n刻录后在设计页「影调」中选出比两侧 AA 圈更亮的圈号。": {
+    "zh-CN": "\n刻录后在设计页「影调」中选出比两侧 AA 圈更亮的圈号。",
+    "en": "\nAfter burning, pick the band that looks brighter than the AA bands beside it under Tone on the Design page."
+  },
+  "CD 对比度测试盘（{0}）": {
+    "zh-CN": "CD 对比度测试盘（{0}）",
+    "en": "CD contrast test disc ({0})"
+  }
+}

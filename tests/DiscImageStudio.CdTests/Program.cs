@@ -44,5 +44,6 @@ GoldenOutputTests.Run();
 ChannelModelTests.Run();
 PaletteTests.Run();
 ContrastTestTests.Run();
+ProjectCdSettingsTests.Run();
 
 Console.WriteLine("cd-tests: all checks passed");

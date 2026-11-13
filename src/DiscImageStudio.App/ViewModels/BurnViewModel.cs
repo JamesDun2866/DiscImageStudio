@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using DiscImageStudio.BluRay;
 using DiscImageStudio.Burning;
 using DiscImageStudio.Cd;
+using DiscImageStudio.Cd.Contrast;
 using DiscImageStudio.Core;
 using DiscImageStudio.Core.Calibration;
 using DiscImageStudio.Dvd;
@@ -125,6 +126,11 @@ public partial class BurnViewModel : ObservableObject
             {
                 OnFamilyInputsChanged();
             }
+            if (args.PropertyName is nameof(DiscParametersState.CdLightBytes) or nameof(DiscParametersState.CdDarkBytes)
+                && !UseCalibrationPattern)
+            {
+                UpdateSourceSummary();
+            }
         };
         PropertyChanged += (_, args) =>
         {
@@ -164,6 +170,22 @@ public partial class BurnViewModel : ObservableObject
 
     public bool CanEditDvdReadCompatibility => !UseCalibrationPattern && IsSetupEnabled;
 
+    /// <summary>Write the light-side contrast test disc instead of the picture (CD projects only).
+    /// The test disc is always a delay-interleaved audio track with exact bytes.</summary>
+    [ObservableProperty]
+    private bool _burnContrastTest;
+
+    /// <summary>The contrast test is offered on the project burn page of a CD project.</summary>
+    public bool CanBurnContrastTest => !UseCalibrationPattern && _shell.CurrentProject is { IsCd: true };
+
+    private bool IsContrastTestBurn => BurnContrastTest && CanBurnContrastTest;
+
+    partial void OnBurnContrastTestChanged(bool value)
+    {
+        UpdateSourceSummary();
+        _ = RefreshWriteSpeedsAsync();
+    }
+
     /// <summary>Workspace navigation for the page's cross-workspace links.</summary>
     public IRelayCommand<Workspace> NavigateCommand => _shell.NavigateCommand;
 
@@ -193,7 +215,7 @@ public partial class BurnViewModel : ObservableObject
         ? OpticalBurnMediaKind.BluRayData
         : IsDvdBurn
             ? OpticalBurnMediaKind.DvdData
-            : !UseCalibrationPattern && !string.IsNullOrWhiteSpace(_state.CdDataDirectory)
+            : !UseCalibrationPattern && !IsContrastTestBurn && !string.IsNullOrWhiteSpace(_state.CdDataDirectory)
                 ? OpticalBurnMediaKind.CdData : OpticalBurnMediaKind.CdAudio;
 
     /// <summary>Device→speeds→confirm gating: not busy, device chosen, checkbox ticked.</summary>
@@ -234,6 +256,7 @@ public partial class BurnViewModel : ObservableObject
         OnPropertyChanged(nameof(DvdReadCompatibility));
         OnPropertyChanged(nameof(IsBluRayBurn));
         OnPropertyChanged(nameof(FamilyLabel));
+        OnPropertyChanged(nameof(CanBurnContrastTest));
         InvalidateConfirmation();
         UpdateSourceSummary();
         UpdateActionState();
@@ -306,6 +329,16 @@ public partial class BurnViewModel : ObservableObject
                 _state.BdVolumeLabel, _state.BdInvertMapping, _state.BdFilesAtOuterRing, _state.BdOuterRingBleed,
                 _state.ToneDitherStrength, _state.ToneBrightness, _state.ToneSrgbLinearization);
         }
+        else if (IsContrastTestBurn)
+        {
+            SourceTitle = L.T("对比度测试盘 · 浅色字节");
+            SourceDetails = string.Join(" · ", CdContrastTestLayout.LightCandidates.Select(
+                    (pattern, index) => $"{index + 1} {pattern}"))
+                + L.T("\n刻录后在设计页「影调」中选出比两侧 AA 圈更亮的圈号。");
+            identity = string.Join("\u001f", "cd-contrast", CdContrastTestLayout.CandidateSet, _state.CdSectors,
+                _state.CdUsableSectors, _state.CdInnerRadius, _state.CdOuterRadius,
+                _state.CdPitchLinear, _state.CdPitchQuadratic, _state.CdPitchCubic);
+        }
         else
         {
             SourceTitle = _design.HasLayers
@@ -314,7 +347,8 @@ public partial class BurnViewModel : ObservableObject
             // The encoding is part of the material actually written, and the burn page has
             // no switch of its own: surfacing it here keeps the streamed bytes explainable.
             string encoding = string.IsNullOrWhiteSpace(_state.CdDataDirectory)
-                ? _state.CdInterleave ? L.T("CD 音轨 · 启用延迟交织") : L.T("CD 音轨 · 未交织")
+                ? (_state.CdInterleave ? L.T("CD 音轨 · 启用延迟交织") : L.T("CD 音轨 · 未交织"))
+                    + (_state.IsCdCustomPalette ? L.F($" · 浅色字节 {_state.CdPalette.Light}") : string.Empty)
                 : L.F($"CD 数据盘 · 文件位于{(_state.CdFilesAtOuterRing ? L.T("外圈") : L.T("内圈"))}");
             SourceDetails = _design.HasLayers
                 ? L.F($"确保磁盘预留适量空间 · {encoding}")
@@ -324,7 +358,7 @@ public partial class BurnViewModel : ObservableObject
                 _state.CdPitchLinear, _state.CdPitchQuadratic, _state.CdPitchCubic,
                 _state.CdDataDirectory, _state.CdVolumeLabel, _state.CdFilesAtOuterRing, _state.CdOuterRingBleed,
                 _state.ToneDitherStrength, _state.ToneLevels, _state.ToneBrightness,
-                _state.ToneSrgbLinearization);
+                _state.ToneSrgbLinearization, _state.CdDarkBytes, _state.CdLightBytes);
         }
 
         if (!string.Equals(identity, _sourceIdentity, StringComparison.Ordinal))
@@ -539,6 +573,7 @@ public partial class BurnViewModel : ObservableObject
             bool dvd = IsDvdBurn;
             bool bluRay = IsBluRayBurn;
             bool calibration = UseCalibrationPattern;
+            bool contrastTest = IsContrastTestBurn;
             int preparationRevision = _burnPreparationRevision;
             OpticalBurnMediaKind mediaKind = CurrentMediaKind;
             BurnWriteSpeedOption selectedWriteSpeed = SelectedSpeed ?? BurnWriteSpeedOption.Automatic;
@@ -572,6 +607,17 @@ public partial class BurnViewModel : ObservableObject
                 };
                 contentDescription = L.F($"{family} 标定图案 · {target.Id[..8]}")
                     + L.F($" · {request.ContentLength / (request.MediaKind == OpticalBurnMediaKind.CdAudio ? CdDiscParameters.BytesPerSector : 2048)} 扇区 · {request.ContentLength / (1024.0 * 1024.0):F1} MiB");
+            }
+            else if (contrastTest)
+            {
+                CdDiscParameters parameters = ReadCdGeneratedParameters();
+                parameters = parameters with
+                {
+                    UsableSectors = StreamBurnCapacity.Resolve(parameters.OutputSectors, capacity.WritableSectors, mediaKind),
+                };
+                request = CreateContrastTestBurnRequest(parameters, device.Id, selectedWriteSpeed.Speed);
+                contentDescription = L.F($"CD 对比度测试盘（{CdContrastTestLayout.CandidateSet}）")
+                    + L.F($" · {parameters.OutputSectors} 扇区 · {request.ContentLength / (1024.0 * 1024.0):F1} MiB");
             }
             else
             {
@@ -675,10 +721,11 @@ public partial class BurnViewModel : ObservableObject
                         _state.CdInterleave,
                         _state.Tone,
                         device.Id,
-                        selectedWriteSpeed.Speed);
+                        selectedWriteSpeed.Speed,
+                        _state.CdPalette);
                     contentDescription = request.MediaKind == OpticalBurnMediaKind.CdData
                         ? L.F($"CD 数据盘（DAO） · 文件位于{(_state.CdFilesAtOuterRing ? L.T("外圈") : L.T("内圈"))}")
-                        : L.T("CD 音轨");
+                        : L.T("CD 音轨") + (_state.IsCdCustomPalette ? L.F($" · 浅色字节 {_state.CdPalette.Light}") : string.Empty);
                     contentDescription += L.F($" · {parameters.OutputSectors} 扇区 · {request.ContentLength / (1024.0 * 1024.0):F1} MiB");
                 }
             }
@@ -778,23 +825,43 @@ public partial class BurnViewModel : ObservableObject
         bool interleave,
         ToneProfile tone,
         string deviceId,
-        OpticalWriteSpeed? writeSpeed)
+        OpticalWriteSpeed? writeSpeed,
+        CdPalette? palette = null)
     {
         parameters.Validate();
         ToneProfile capturedTone = tone.Normalized();
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
+            CdPalette capturedPalette = palette ?? CdPalette.Standard;
+            capturedPalette.Validate(capturedTone.Levels);
             return new OpticalBurnRequest(deviceId, OpticalBurnMediaKind.CdAudio, parameters.TotalBytes,
                 (output, token) => CdTrackGenerator.GenerateToStream(imagePath, output, parameters,
                     interleave, cancellationToken: token, audioByteOrder: CdAudioByteOrder.LittleEndian,
-                    tone: capturedTone), writeSpeed);
+                    tone: capturedTone, palette: capturedPalette), writeSpeed);
         }
+
+        // Data discs keep the standard bytes: custom disc bytes are defined for audio tracks only.
 
         CdDataLayoutPlan plan = CdDataImageGenerator.PrepareLayout(dataDirectory.Trim(), parameters,
             string.IsNullOrWhiteSpace(volumeLabel) ? "CD_IMAGE" : volumeLabel.Trim(), filesAtOuterRing);
         return new OpticalBurnRequest(deviceId, OpticalBurnMediaKind.CdData, checked(parameters.OutputSectors * 2048),
             (output, token) => CdDataImageGenerator.GenerateToStream(imagePath, output, parameters, plan,
                 cancellationToken: token, tone: capturedTone), writeSpeed);
+    }
+
+    /// <summary>The light-side contrast test disc (exact bytes, delay-interleaved audio).
+    /// Separate from physical writing so tests can capture its bytes in memory.</summary>
+    internal static OpticalBurnRequest CreateContrastTestBurnRequest(
+        CdDiscParameters parameters,
+        string deviceId,
+        OpticalWriteSpeed? writeSpeed)
+    {
+        parameters.Validate();
+        // Fails here, before the recorder is touched, if the disc area is too narrow.
+        _ = CdContrastTestLayout.Bands(parameters);
+        return new OpticalBurnRequest(deviceId, OpticalBurnMediaKind.CdAudio, parameters.TotalBytes,
+            (output, token) => CdContrastTest.GenerateToStream(output, parameters, interleave: true,
+                CdAudioByteOrder.LittleEndian, cancellationToken: token), writeSpeed);
     }
 
     // Request construction is separate from physical writing so the captured

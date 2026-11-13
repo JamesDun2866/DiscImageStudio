@@ -211,7 +211,48 @@ public partial class DiscParametersState : ObservableObject
         : $"{ToneBrightness:0}";
 
     public string ToneSummary => L.F($"{ToneLevels} 级 · {ToneDitherText} 抖动")
-        + (ToneSrgbLinearization ? L.T(" · sRGB 线性化") : string.Empty);
+        + (ToneSrgbLinearization ? L.T(" · sRGB 线性化") : string.Empty)
+        + (IsCdCustomPalette ? L.F($" · 浅色字节 {CdPalette.Light}") : string.Empty);
+
+    /// <summary>CD light-tone disc bytes ("AA" standard, or a contrast-test band such as
+    /// "F2-A8"). Dark stays 0D in the UI; a project file may still carry custom dark bytes, which
+    /// are kept as they are. Custom bytes are audio-only and two-level.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CdPalette), nameof(IsCdCustomPalette), nameof(ToneSummary))]
+    private string _cdLightBytes = CdPalette.Standard.Light.ToString();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CdPalette), nameof(IsCdCustomPalette), nameof(ToneSummary))]
+    private string _cdDarkBytes = CdPalette.Standard.Dark.ToString();
+
+    /// <summary>The CD palette the generators use; unreadable text falls back to the standard bytes.</summary>
+    public CdPalette CdPalette
+        => CdBytePattern.TryParse(CdDarkBytes, out CdBytePattern dark)
+            && CdBytePattern.TryParse(CdLightBytes, out CdBytePattern light)
+            && dark.Even != light.Even && dark.Odd != light.Odd
+                ? new CdPalette(dark, light)
+                : CdPalette.Standard;
+
+    public bool IsCdCustomPalette => !CdPalette.IsStandard;
+
+    // Custom bytes are defined for the two-level tone only: choosing a test band switches 4 levels
+    // off, and switching 4 levels back on returns to the standard bytes.
+    partial void OnCdLightBytesChanged(string value)
+    {
+        if (IsCdCustomPalette && ToneLevels == ToneProfile.FourLevels)
+        {
+            ToneLevels = ToneProfile.TwoLevels;
+        }
+    }
+
+    partial void OnToneLevelsChanged(int value)
+    {
+        if (value == ToneProfile.FourLevels && IsCdCustomPalette)
+        {
+            CdLightBytes = CdPalette.Standard.Light.ToString();
+            CdDarkBytes = CdPalette.Standard.Dark.ToString();
+        }
+    }
 
     /// <summary>A CUE sheet only accompanies PCM WAV tracks, so the CD page offers its
     /// toggle only while the chosen output is a .wav file.</summary>

@@ -47,6 +47,14 @@ public sealed record ProjectOutputs(
 /// that bit.</summary>
 public sealed record ProjectBluRaySettings(bool InvertMapping = false);
 
+/// <summary>Generation settings that exist only for CD projects: custom two-level disc bytes,
+/// written as hexadecimal byte patterns such as "AA" or "F2-A8". A missing field means the
+/// standard byte (0D dark, AA light); the section is omitted entirely for standard projects so
+/// they stay readable by builds that predate it.</summary>
+public sealed record ProjectCdSettings(
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DarkBytes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LightBytes = null);
+
 /// <summary>The on-disk project (.discproj): everything needed to reopen a disc design and
 /// regenerate its outputs. Images stay referenced by absolute path.
 /// <see cref="Tone"/> is null for files written before tone mapping existed; those projects
@@ -65,7 +73,8 @@ public sealed record ProjectDocument(
     DateTimeOffset CreatedUtc,
     DateTimeOffset ModifiedUtc,
     ToneProfile? Tone = null,
-    ProjectBluRaySettings? BluRay = null)
+    ProjectBluRaySettings? BluRay = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ProjectCdSettings? Cd = null)
 {
     public const string CdFamily = "cd";
     public const string DvdFamily = "dvd";
@@ -214,6 +223,8 @@ public static class ProjectJsonStore
             throw DiagnosticMessage.InvalidData($"bluRay 设置只用于蓝光工程。");
         }
 
+        ValidateCd(document);
+
         if (string.IsNullOrWhiteSpace(document.Name))
         {
             throw DiagnosticMessage.InvalidData($"工程名不能为空。");
@@ -241,6 +252,43 @@ public static class ProjectJsonStore
         ValidateOutputs(document);
         ValidateTone(document);
         ValidateThumbnail(document.ThumbnailPngBase64);
+    }
+
+    private static void ValidateCd(ProjectDocument document)
+    {
+        if (document.Cd is not { } cd)
+        {
+            return;
+        }
+
+        if (!document.IsCd)
+        {
+            throw DiagnosticMessage.InvalidData($"cd 设置只用于 CD 工程。");
+        }
+
+        string? dark = NormalizeBytePattern(cd.DarkBytes, "cd.darkBytes");
+        string? light = NormalizeBytePattern(cd.LightBytes, "cd.lightBytes");
+        if ((dark ?? "0D") == (light ?? "AA"))
+        {
+            throw DiagnosticMessage.InvalidData($"cd 设置的深色与浅色字节不能相同。");
+        }
+    }
+
+    /// <summary>Upper-case "XX" or "XX-XX"; the CD module interprets the bytes.</summary>
+    private static string? NormalizeBytePattern(string? value, string field)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        string[] parts = value.Trim().Split('-');
+        if (parts.Length is < 1 or > 2 || parts.Any(part => part.Length != 2 || !part.All(char.IsAsciiHexDigit)))
+        {
+            throw DiagnosticMessage.InvalidData($"{field} 的值 '{value}' 不是有效的光盘字节，应为 AA 或 F2-A8 形式的十六进制。");
+        }
+
+        return string.Join('-', parts).ToUpperInvariant();
     }
 
     private static void ValidateTone(ProjectDocument document)

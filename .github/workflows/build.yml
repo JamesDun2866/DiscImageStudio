@@ -120,7 +120,17 @@ jobs:
         run: dotnet build DiscImageStudio.slnx --configuration Release --no-restore
 
       - name: Test module architecture
+        env:
+          DISC_IMAGE_STUDIO_UI_SNAPSHOTS: ${{ github.workspace }}/artifacts/ui-snapshots
         run: dotnet run --project tests/DiscImageStudio.ArchitectureTests --configuration Release --no-build
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-snapshots-${{ matrix.rid }}
+          path: artifacts/ui-snapshots/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Test original DVD engine
         run: dotnet run --project src/DvdImageSolver --configuration Release --no-build -- selftest

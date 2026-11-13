@@ -99,6 +99,14 @@
                                                IsSecondSelected="{Binding State.IsFourLevelSelected}" />
                     <TextBlock Style="{StaticResource CompactHint}" Margin="0,4,0,0"
                                Text="{loc:Text Xaml.FourLevelsUseFourTonesToRevealFinerDetails}" />
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Margin="0,12,0,0" Text="{loc:Text ContrastTest.LightBytes}" />
+                    <ComboBox x:Name="CdLightBytesPicker" Style="{StaticResource CompactComboBox}"
+                              ItemsSource="{Binding CdLightBytesOptions}" DisplayMemberPath="Label"
+                              SelectedItem="{Binding SelectedCdLightBytesOption, Mode=TwoWay}"
+                              AutomationProperties.Name="{loc:Text ContrastTest.LightBytes}" />
+                    <TextBlock Style="{StaticResource CompactHint}" Margin="0,4,0,0"
+                               Text="{loc:Text ContrastTest.LightBytesHint}" />
                 </StackPanel>
             </controls:VisibilityGate>
 
